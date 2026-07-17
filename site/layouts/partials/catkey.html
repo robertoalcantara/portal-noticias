@@ -1,0 +1,12 @@
+{{- /* Recebe a categoria e devolve só a chave de cor (ex.: "f1"). */ -}}
+{{- $colorMap := dict
+  "Fórmula 1" "f1"
+  "IndyCar" "indycar"
+  "NASCAR" "nascar"
+  "MotoGP" "motogp"
+  "Endurance" "endurance"
+  "Rally" "rally"
+  "Fórmula E" "formula-e"
+  "Automobilismo" "auto"
+-}}
+{{- index $colorMap . | default "auto" -}}

@@ -1,7 +1,9 @@
 {{ define "main" }}
   <article class="post">
     <div class="post-head">
-      {{ with .Params.categories }}<span class="eyebrow">{{ index . 0 }}</span>{{ end }}
+      {{ $cat := "Automobilismo" }}
+      {{ with .Params.categories }}{{ $cat = index . 0 }}{{ end }}
+      {{ partial "chip.html" $cat }}
       <h1 class="post-title">{{ .Title }}</h1>
       {{ with .Params.summary }}<p class="post-dek">{{ . }}</p>{{ end }}
       <p class="meta">
@@ -10,17 +12,21 @@
       </p>
     </div>
 
+    {{ with .Params.image }}
+      <div class="post-media">
+        <img src="{{ . }}" alt="" loading="eager" />
+      </div>
+    {{ end }}
+
     <div class="prose">
       {{ .Content }}
     </div>
 
     {{ if .Params.source_url }}
       <aside class="attribution">
-        <span class="sector"></span>
         <div>
           <strong>Matéria baseada em publicação de {{ .Params.source_name }}.</strong>
           <a href="{{ .Params.source_url }}" rel="nofollow noopener" target="_blank">Ler o original →</a>
-          <p class="attribution-note">Texto reescrito e resumido de forma automatizada.</p>
         </div>
       </aside>
     {{ end }}
@@ -31,6 +37,6 @@
       </div>
     {{ end }}
 
-    <p class="back"><a href="{{ "/" | relURL }}">← Voltar à grid</a></p>
+    <p class="back"><a href="{{ "/" | relURL }}">← Voltar à capa</a></p>
   </article>
 {{ end }}

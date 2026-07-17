@@ -2,8 +2,7 @@
   {{ $posts := where site.RegularPages "Type" "posts" }}
   {{ if not $posts }}
     <section class="empty">
-      <p class="pos">P—</p>
-      <h1>A grid está vazia.</h1>
+      <h1>A capa está vazia.</h1>
       <p class="empty-note">
         Rode o workflow <code>Atualizar notícias</code> no GitHub (aba Actions →
         Run workflow) para publicar as primeiras matérias.
@@ -11,35 +10,58 @@
     </section>
   {{ else }}
     {{ $hero := index $posts 0 }}
+    {{ $heroCat := "Automobilismo" }}
+    {{ with $hero.Params.categories }}{{ $heroCat = index . 0 }}{{ end }}
     {{ $rest := after 1 $posts }}
+    {{ $latest := first 6 $rest }}
 
-    <section class="lead">
-      <div class="lead-rail"><span class="pos pos-lead">P1</span><span class="sector"></span></div>
-      <article class="lead-card">
-        {{ with $hero.Params.categories }}<span class="eyebrow">{{ index . 0 }}</span>{{ end }}
-        <h1 class="lead-title"><a href="{{ $hero.RelPermalink }}">{{ $hero.Title }}</a></h1>
-        {{ with $hero.Params.summary }}<p class="lead-dek">{{ . }}</p>{{ end }}
+    <section class="hero">
+      <a class="hero-media" href="{{ $hero.RelPermalink }}">
+        {{ with $hero.Params.image }}
+          <img src="{{ . }}" alt="" loading="eager" />
+        {{ else }}
+          {{ $key := partial "catkey.html" $heroCat }}
+          <span class="placeholder placeholder-{{ $key }} placeholder-hero">
+            <span class="placeholder-mark">{{ $heroCat }}</span>
+          </span>
+        {{ end }}
+      </a>
+      <div class="hero-body">
+        <span class="eyebrow">Destaque</span>
+        {{ partial "chip.html" $heroCat }}
+        <h1 class="hero-title"><a href="{{ $hero.RelPermalink }}">{{ $hero.Title }}</a></h1>
+        {{ with $hero.Params.summary }}<p class="hero-dek">{{ . }}</p>{{ end }}
         <p class="meta">
           <time datetime="{{ $hero.Date.Format "2006-01-02" }}">{{ $hero.Date.Format "02 jan 2006, 15:04" }}</time>
           {{ with $hero.Params.source_name }}<span class="dot">•</span>{{ . }}{{ end }}
         </p>
-      </article>
+      </div>
     </section>
 
-    <ol class="tower">
-      {{ range $i, $p := $rest }}
-        <li class="row">
-          <span class="pos">P{{ add $i 2 }}</span>
-          <div class="row-body">
-            <h2 class="row-title"><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></h2>
-            <p class="meta">
-              {{ with $p.Params.categories }}<span class="tag">{{ index . 0 }}</span>{{ end }}
-              <time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "02 jan, 15:04" }}</time>
-              {{ with $p.Params.source_name }}<span class="dot">•</span>{{ . }}{{ end }}
-            </p>
+    {{ if $latest }}
+      <section class="section">
+        <h2 class="section-title">Últimas notícias</h2>
+        <div class="grid">
+          {{ range $latest }}{{ partial "card.html" . }}{{ end }}
+        </div>
+      </section>
+    {{ end }}
+
+    {{ $categoryList := slice "Fórmula 1" "IndyCar" "NASCAR" "MotoGP" "Endurance" "Rally" "Fórmula E" "Automobilismo" }}
+    {{ range $categoryList }}
+      {{ $catName := . }}
+      {{ $catPosts := where $posts "Params.categories" "intersect" (slice $catName) }}
+      {{ if $catPosts }}
+        <section class="section">
+          <div class="section-head">
+            <h2 class="section-title">{{ $catName }}</h2>
+            <a class="section-link" href="{{ printf "/categories/%s/" ($catName | urlize) | relURL }}">Ver tudo →</a>
           </div>
-        </li>
+          <div class="hscroll">
+            {{ range first 6 $catPosts }}{{ partial "card.html" . }}{{ end }}
+          </div>
+        </section>
       {{ end }}
-    </ol>
+    {{ end }}
   {{ end }}
 {{ end }}

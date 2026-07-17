@@ -6,8 +6,13 @@
     </a>
     <nav class="nav" aria-label="Categorias">
       <a href="{{ "/posts/" | relURL }}">Últimas</a>
-      {{ range $name, $terms := site.Taxonomies.categories }}
-        <a href="{{ printf "/categories/%s/" $name | relURL }}">{{ $name | title }}</a>
+      {{ $categoryList := slice "Fórmula 1" "IndyCar" "NASCAR" "MotoGP" "Endurance" "Rally" "Fórmula E" "Automobilismo" }}
+      {{ range $categoryList }}
+        {{ $catName := . }}
+        {{ $slug := $catName | urlize }}
+        {{ if index site.Taxonomies.categories $slug }}
+          <a href="{{ printf "/categories/%s/" $slug | relURL }}">{{ $catName }}</a>
+        {{ end }}
       {{ end }}
     </nav>
   </div>

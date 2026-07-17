@@ -1,0 +1,7 @@
+{{- /*
+  Recebe a string da categoria e devolve um <span> com a cor correspondente.
+  Uso: {{ partial "chip.html" "Fórmula 1" }}
+*/ -}}
+{{- $cat := . -}}
+{{- $key := partial "catkey.html" $cat -}}
+<span class="chip chip-{{ $key }}">{{ $cat }}</span>

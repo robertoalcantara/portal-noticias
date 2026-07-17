@@ -1,0 +1,25 @@
+{{- /* Recebe a página (post) e desenha um card de portal. */ -}}
+{{- $p := . -}}
+{{- $cat := "Automobilismo" -}}
+{{- with $p.Params.categories }}{{ $cat = index . 0 }}{{ end -}}
+<article class="card">
+  <a class="card-media" href="{{ $p.RelPermalink }}">
+    {{ with $p.Params.image }}
+      <img src="{{ . }}" alt="" loading="lazy" />
+    {{ else }}
+      {{ $key := partial "catkey.html" $cat }}
+      <span class="placeholder placeholder-{{ $key }}">
+        <span class="placeholder-mark">{{ $cat }}</span>
+      </span>
+    {{ end }}
+  </a>
+  <div class="card-body">
+    {{ partial "chip.html" $cat }}
+    <h3 class="card-title"><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></h3>
+    {{ with $p.Params.summary }}<p class="card-dek">{{ . }}</p>{{ end }}
+    <p class="meta">
+      <time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "02 jan, 15:04" }}</time>
+      {{ with $p.Params.source_name }}<span class="dot">•</span>{{ . }}{{ end }}
+    </p>
+  </div>
+</article>

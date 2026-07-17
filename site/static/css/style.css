@@ -1,27 +1,38 @@
 /* ============================================================
-   GRID — tema "pit wall / timing screen"
-   Fundo grafite noturno, meta em monoespaçada como tela de
-   cronometragem, roxo = "setor mais rápido" (P1).
+   GRID — tema "portal" (grade de matérias com imagem)
+   Fundo claro, títulos em condensada (placar/numeral de pit lane),
+   cor por categoria = "setor" do assunto, como um código de disciplina.
    ============================================================ */
 
 :root {
-  --bg: #101219;
-  --surface: #171a23;
-  --line: #262a37;
-  --ink: #e9eaef;
-  --muted: #868c9c;
-  --faint: #5a6070;
-  --purple: #b14bf4;      /* setor mais rápido */
-  --green: #33d17a;       /* melhor pessoal / ao vivo */
-  --max: 940px;
+  --bg: #ffffff;
+  --bg-alt: #f5f6f8;
+  --ink: #14161b;
+  --muted: #5b616e;
+  --faint: #9ca1ac;
+  --line: #e5e7eb;
+  --line-strong: #d5d8de;
 
-  --display: "Space Grotesk", system-ui, sans-serif;
+  /* cor por categoria — a mesma lógica de um painel de setores,
+     reaproveitada aqui como código de disciplina de corrida */
+  --f1: #e4572e;
+  --indycar: #2e6f95;
+  --nascar: #b8790a;
+  --motogp: #7b2cbf;
+  --endurance: #157f6e;
+  --rally: #5b7a2e;
+  --formula-e: #0091ad;
+  --auto: #5b616e;
+
+  --max: 1160px;
+
+  --display: "Archivo Black", system-ui, sans-serif;
+  --condensed: "Barlow Condensed", system-ui, sans-serif;
   --body: "Inter", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 * { box-sizing: border-box; }
-
 html { -webkit-text-size-adjust: 100%; }
 
 body {
@@ -29,7 +40,7 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--body);
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -38,16 +49,17 @@ body {
 
 a { color: inherit; text-decoration: none; }
 a:focus-visible, button:focus-visible {
-  outline: 2px solid var(--purple);
+  outline: 2px solid var(--ink);
   outline-offset: 3px;
   border-radius: 2px;
 }
+img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
 /* ---------- cabeçalho ---------- */
 .site-head {
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 10;
-  background: rgba(16, 18, 25, 0.9);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
 }
 .head-inner {
@@ -56,140 +68,201 @@ a:focus-visible, button:focus-visible {
 }
 .brand { display: flex; align-items: baseline; gap: 12px; }
 .brand-mark {
-  font-family: var(--display); font-weight: 700; font-size: 26px;
-  letter-spacing: 0.14em; color: var(--ink);
+  font-family: var(--display); font-size: 22px; letter-spacing: 0.02em; color: var(--ink);
 }
 .brand-mark::before {
-  content: ""; display: inline-block; width: 9px; height: 22px;
-  background: var(--purple); margin-right: 10px; vertical-align: -3px;
+  content: ""; display: inline-block; width: 9px; height: 20px;
+  background: var(--f1); margin-right: 10px; vertical-align: -3px;
   transform: skewX(-14deg);
 }
 .brand-tag {
   font-family: var(--mono); font-size: 11px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.1em;
+  text-transform: uppercase; letter-spacing: 0.08em;
 }
 .nav {
-  display: flex; gap: 18px; flex-wrap: wrap;
-  font-family: var(--mono); font-size: 12.5px;
-  text-transform: uppercase; letter-spacing: 0.06em;
+  display: flex; gap: 20px; flex-wrap: wrap;
+  font-family: var(--condensed); font-weight: 600; font-size: 15px;
+  text-transform: uppercase; letter-spacing: 0.03em;
 }
-.nav a { color: var(--muted); padding-bottom: 2px; border-bottom: 1px solid transparent; }
-.nav a:hover { color: var(--ink); border-bottom-color: var(--purple); }
+.nav a { color: var(--muted); padding-bottom: 2px; border-bottom: 2px solid transparent; }
+.nav a:hover { color: var(--ink); border-bottom-color: var(--f1); }
 
 /* ---------- utilidades ---------- */
 .eyebrow {
-  font-family: var(--mono); font-size: 12px; color: var(--purple);
-  text-transform: uppercase; letter-spacing: 0.14em; font-weight: 500;
+  font-family: var(--condensed); font-weight: 700; font-size: 13px; color: var(--f1);
+  text-transform: uppercase; letter-spacing: 0.1em;
 }
 .meta {
-  font-family: var(--mono); font-size: 12.5px; color: var(--muted);
-  display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0;
+  font-family: var(--mono); font-size: 12px; color: var(--muted);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0;
 }
 .dot { color: var(--faint); }
+
+.chip {
+  display: inline-block; font-family: var(--condensed); font-weight: 700;
+  font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 3px 10px; border-radius: 4px; color: #fff;
+}
+.chip-f1 { background: var(--f1); }
+.chip-indycar { background: var(--indycar); }
+.chip-nascar { background: var(--nascar); }
+.chip-motogp { background: var(--motogp); }
+.chip-endurance { background: var(--endurance); }
+.chip-rally { background: var(--rally); }
+.chip-formula-e { background: var(--formula-e); }
+.chip-auto { background: var(--auto); }
+
 .tag {
   font-family: var(--mono); font-size: 11px; color: var(--ink);
-  border: 1px solid var(--line); padding: 2px 7px; border-radius: 3px;
+  border: 1px solid var(--line-strong); padding: 2px 7px; border-radius: 3px;
   text-transform: uppercase; letter-spacing: 0.05em;
 }
-.sector {
-  display: inline-block; width: 26px; height: 4px; border-radius: 2px;
-  background: var(--purple);
-}
-.pos {
-  font-family: var(--mono); font-weight: 500; color: var(--faint);
-  font-size: 13px; letter-spacing: 0.04em;
-}
 
-/* ---------- home: destaque P1 ---------- */
-main.wrap { padding-top: 40px; padding-bottom: 72px; }
+/* placeholder de imagem: listra diagonal na cor da categoria,
+   usado até a matéria ter uma foto de verdade */
+.placeholder {
+  display: flex; align-items: flex-end; justify-content: flex-start;
+  width: 100%; height: 100%; padding: 14px;
+  background-image:
+    repeating-linear-gradient(-18deg, rgba(255,255,255,0.14) 0 14px, transparent 14px 30px);
+}
+.placeholder-mark {
+  font-family: var(--condensed); font-weight: 700; color: #fff;
+  font-size: 15px; text-transform: uppercase; letter-spacing: 0.04em;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+.placeholder-hero .placeholder-mark { font-size: 22px; }
+.placeholder-f1 { background-color: var(--f1); }
+.placeholder-indycar { background-color: var(--indycar); }
+.placeholder-nascar { background-color: var(--nascar); }
+.placeholder-motogp { background-color: var(--motogp); }
+.placeholder-endurance { background-color: var(--endurance); }
+.placeholder-rally { background-color: var(--rally); }
+.placeholder-formula-e { background-color: var(--formula-e); }
+.placeholder-auto { background-color: var(--auto); }
 
-.lead { display: grid; grid-template-columns: 52px 1fr; gap: 18px; margin-bottom: 12px; }
-.lead-rail { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 6px; }
-.pos-lead { color: var(--purple); font-size: 15px; font-weight: 500; }
-.lead-card {
-  border-bottom: 1px solid var(--line); padding-bottom: 30px;
-}
-.lead-title {
-  font-family: var(--display); font-weight: 700;
-  font-size: clamp(30px, 5.2vw, 46px); line-height: 1.05;
-  letter-spacing: -0.01em; margin: 12px 0 14px;
-}
-.lead-title a:hover { color: var(--purple); }
-.lead-dek {
-  font-size: 19px; color: var(--ink); opacity: 0.86; margin: 0 0 16px; max-width: 54ch;
-}
+/* ---------- main / seções ---------- */
+main.wrap { padding-top: 32px; padding-bottom: 72px; }
 
-/* ---------- torre de tempos ---------- */
-.tower { list-style: none; margin: 0; padding: 0; }
-.row {
-  display: grid; grid-template-columns: 52px 1fr; gap: 18px; align-items: baseline;
-  padding: 20px 0; border-bottom: 1px solid var(--line);
-  transition: background 0.15s ease;
+.section { margin-top: 44px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.section-title {
+  font-family: var(--condensed); font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.02em; font-size: 22px; margin: 0 0 16px;
+  padding-left: 12px; border-left: 4px solid var(--f1);
 }
-.row:hover { background: var(--surface); }
-.row .pos { padding-top: 2px; }
-.row-title {
-  font-family: var(--display); font-weight: 600;
-  font-size: clamp(18px, 2.6vw, 22px); line-height: 1.2; margin: 0 0 8px;
-  letter-spacing: -0.005em;
+.section-head .section-title { margin-bottom: 0; }
+.section-link {
+  font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+  white-space: nowrap;
 }
-.row-title a:hover { color: var(--purple); }
+.section-link:hover { color: var(--ink); }
+
+/* ---------- destaque (hero) ---------- */
+.hero {
+  display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px;
+  padding-bottom: 32px; border-bottom: 1px solid var(--line);
+}
+.hero-media {
+  display: block; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden;
+  background: var(--bg-alt);
+}
+.hero-body { display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+.hero-body .chip { width: fit-content; }
+.hero-title {
+  font-family: var(--display); font-size: clamp(24px, 3.2vw, 36px); line-height: 1.08;
+  letter-spacing: -0.005em; margin: 4px 0 6px;
+}
+.hero-title a:hover { color: var(--f1); }
+.hero-dek { font-size: 17px; color: var(--muted); margin: 0 0 6px; max-width: 52ch; }
+
+/* ---------- grades de card ---------- */
+.grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
+}
+.hscroll {
+  display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding-bottom: 6px; margin: 0 -4px; padding-left: 4px;
+}
+.hscroll .card { flex: 0 0 260px; scroll-snap-align: start; }
+
+.card { display: flex; flex-direction: column; }
+.card-media {
+  display: block; aspect-ratio: 16 / 10; border-radius: 8px; overflow: hidden;
+  background: var(--bg-alt); margin-bottom: 12px;
+}
+.card-body { display: flex; flex-direction: column; gap: 6px; }
+.card-body .chip { width: fit-content; }
+.card-title {
+  font-family: var(--condensed); font-weight: 600; font-size: 19px; line-height: 1.22;
+  margin: 2px 0 0; letter-spacing: 0.003em;
+}
+.card-title a:hover { color: var(--f1); }
+.card-dek { font-size: 14px; color: var(--muted); margin: 0; line-height: 1.45; }
 
 /* ---------- página da matéria ---------- */
 .post { max-width: 700px; margin: 0 auto; }
-.post-head { border-bottom: 1px solid var(--line); padding-bottom: 22px; margin-bottom: 30px; }
+.post-head { padding-bottom: 20px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+.post-head .chip { margin-bottom: 10px; }
 .post-title {
-  font-family: var(--display); font-weight: 700;
-  font-size: clamp(28px, 4.6vw, 42px); line-height: 1.08;
-  letter-spacing: -0.01em; margin: 12px 0 14px;
+  font-family: var(--display); font-size: clamp(26px, 4.2vw, 38px); line-height: 1.1;
+  letter-spacing: -0.005em; margin: 6px 0 12px;
 }
-.post-dek { font-size: 20px; opacity: 0.85; margin: 0 0 16px; }
+.post-dek { font-size: 19px; color: var(--muted); margin: 0 0 14px; }
+
+.post-media {
+  aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
+  background: var(--bg-alt); margin: 0 0 30px;
+}
 
 .prose { font-size: 18px; line-height: 1.75; }
 .prose p { margin: 0 0 1.3em; }
-.prose h2, .prose h3 { font-family: var(--display); line-height: 1.2; margin: 1.8em 0 0.6em; }
-.prose a { color: var(--purple); text-decoration: underline; text-underline-offset: 2px; }
+.prose h2, .prose h3 { font-family: var(--condensed); text-transform: uppercase; line-height: 1.2; margin: 1.8em 0 0.6em; }
+.prose a { color: var(--f1); text-decoration: underline; text-underline-offset: 2px; }
 .prose blockquote {
-  margin: 1.4em 0; padding: 4px 0 4px 18px; border-left: 3px solid var(--purple);
+  margin: 1.4em 0; padding: 4px 0 4px 18px; border-left: 3px solid var(--f1);
   color: var(--muted); font-style: italic;
 }
 
 .attribution {
-  display: flex; gap: 14px; align-items: flex-start;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-  padding: 18px 20px; margin: 40px 0 24px; font-size: 15px;
+  background: var(--bg-alt); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px 18px; margin: 36px 0 24px; font-size: 14.5px;
 }
-.attribution .sector { margin-top: 7px; flex: none; }
-.attribution a { color: var(--purple); font-family: var(--mono); font-size: 13px; }
-.attribution-note { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+.attribution strong { display: block; margin-bottom: 4px; }
+.attribution a { color: var(--f1); font-family: var(--mono); font-size: 13px; }
 
-.tags { display: flex; gap: 8px; flex-wrap: wrap; margin: 24px 0; }
-.back { margin-top: 34px; }
+.tags { display: flex; gap: 8px; flex-wrap: wrap; margin: 22px 0; }
+.back { margin-top: 30px; }
 .back a { font-family: var(--mono); font-size: 13px; color: var(--muted); }
-.back a:hover { color: var(--purple); }
+.back a:hover { color: var(--f1); }
 
 /* ---------- listas de seção ---------- */
-.list-head { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 8px; }
-.list-title { font-family: var(--display); font-weight: 700; font-size: clamp(26px, 4vw, 38px); margin: 10px 0 0; }
+.list-head { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 28px; }
+.list-title { font-family: var(--display); font-size: clamp(24px, 3.6vw, 34px); margin: 8px 0 0; }
 
 /* ---------- vazio ---------- */
 .empty { padding: 40px 0; }
-.empty h1 { font-family: var(--display); font-size: 30px; margin: 6px 0 12px; }
+.empty h1 { font-family: var(--display); font-size: 28px; margin: 6px 0 12px; }
 .empty-note { color: var(--muted); max-width: 46ch; }
-.empty code, .empty-note code { font-family: var(--mono); font-size: 0.9em; color: var(--ink); }
+.empty code { font-family: var(--mono); font-size: 0.9em; }
 
 /* ---------- rodapé ---------- */
-.site-foot { border-top: 1px solid var(--line); margin-top: 40px; }
-.foot-inner { padding: 28px 22px 48px; }
-.foot-line { display: flex; align-items: center; gap: 12px; font-family: var(--display); font-weight: 600; margin: 0 0 8px; }
-.foot-note { color: var(--muted); font-size: 13px; max-width: 60ch; margin: 0; }
+.site-foot { border-top: 1px solid var(--line); margin-top: 48px; background: var(--bg-alt); }
+.foot-inner { padding: 28px 22px 40px; }
+.foot-line { display: flex; align-items: center; gap: 10px; font-family: var(--condensed); font-weight: 600; font-size: 17px; margin: 0 0 6px; text-transform: uppercase; }
+.foot-mark { display: inline-block; width: 7px; height: 16px; background: var(--f1); transform: skewX(-14deg); }
+.foot-note { color: var(--muted); font-size: 13px; margin: 0; }
 
 /* ---------- responsivo ---------- */
-@media (max-width: 560px) {
-  body { font-size: 16px; }
-  .lead, .row { grid-template-columns: 40px 1fr; gap: 12px; }
-  .lead-rail { flex-direction: row; align-items: center; }
-  .nav { gap: 12px; font-size: 11.5px; }
+@media (max-width: 860px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .hero { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: 1fr; }
+  .nav { gap: 14px; font-size: 13.5px; }
+  .section-title { font-size: 19px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

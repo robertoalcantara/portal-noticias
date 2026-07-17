@@ -229,6 +229,7 @@ def write_post(article: dict, source_name: str, source_url: str, date: datetime)
             f'tags = {toml_list(article.get("tags", []))}',
             f'source_name = "{esc(source_name)}"',
             f'source_url = "{esc(source_url)}"',
+            f'image = "{esc(article.get("image", ""))}"',
             "+++",
             "",
         ]

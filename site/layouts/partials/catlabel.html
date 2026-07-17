@@ -1,0 +1,12 @@
+{{- /* Recebe o slug da URL (ex.: "motogp") e devolve o nome correto (ex.: "MotoGP"). */ -}}
+{{- $labelMap := dict
+  "fórmula-1" "Fórmula 1"
+  "indycar" "IndyCar"
+  "nascar" "NASCAR"
+  "motogp" "MotoGP"
+  "endurance" "Endurance"
+  "rally" "Rally"
+  "fórmula-e" "Fórmula E"
+  "automobilismo" "Automobilismo"
+-}}
+{{- index $labelMap . | default (. | title) -}}
