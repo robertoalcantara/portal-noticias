@@ -34,20 +34,25 @@ feeds:
     url: "https://www.fia.com/rss/press-release"
 
   # --- Kart (europeu / internacional) ---
+  # O feed RSS oficial (vroomkart.com/rss.xml) não funciona mais / mudou de
+  # URL. O site não tem RSS ativo, então usamos raspagem da página de
+  # notícias (mesma técnica dos sites brasileiros abaixo).
   - name: "Vroomkart"
-    type: rss
-    url: "https://www.vroomkart.com/rss.xml"
+    type: list
+    list_url: "https://www.vroomkart.com/news"
+    link_contains: "/news/"
 
   - name: "eKarting News"
     type: rss
     url: "https://ekartingnews.com/feed"
 
   # --- Kart / automobilismo brasileiro (sem RSS -> raspagem da listagem) ---
-  - name: "Kart Motor"
-    type: list
-    list_url: "https://www.kartmotor.com.br/"
-    link_contains: "/noticias/"
-
+  #
+  # NOTA: kartmotor.com.br foi removido de propósito. O robots.txt do site
+  # proíbe acesso automatizado (verificado em jul/2026) — respeitamos isso
+  # em vez de contornar. Se quiser esse conteúdo, o caminho certo é entrar
+  # em contato com o Kart Motor para algum tipo de parceria/licenciamento,
+  # não raspar contra a vontade explícita deles.
   - name: "CBA"
     type: list
     list_url: "https://www.cba.org.br/"

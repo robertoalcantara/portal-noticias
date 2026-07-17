@@ -63,6 +63,11 @@ o tempo todo.
   já causei perda de ~29 manchetes reais fazendo isso errado numa versão
   anterior). Se mexer no tratamento de erro de `cluster_and_classify`,
   preserve esse comportamento.
+- **Antes de adicionar uma fonte `type: list` (sem RSS), confira o
+  `robots.txt` do domínio.** Se ele proibir acesso automatizado, não
+  contorne — não adicione a fonte (ou peça permissão direta ao site). Já
+  aconteceu aqui: `kartmotor.com.br` foi removido por esse motivo, mesmo
+  tendo conteúdo relevante para o escopo do site.
 - **`trafilatura.bare_extraction()` às vezes devolve um objeto `Document`,
   às vezes um `dict`**, dependendo da versão/parâmetros — já causou um
   crash em produção. `collect_list_candidates` trata os dois casos
@@ -94,12 +99,17 @@ como `conclusion: "success"` na API de jobs (o campo que reflete a falha
 real é `outcome`, que a API de listagem de jobs não expõe). Não confie só
 no `conclusion` pra saber se a geração realmente funcionou — confira o log.
 
-### Fontes que não estão trazendo nada no momento
-`Vroomkart` (feed RSS aparentemente fora do ar ou mudou de URL) e
-`Kart Motor` (listagem sem os links esperados — pode ser conteúdo
-carregado via JS, ou a substring `link_contains` desatualizada). Não
-travam o pipeline, só ficam com zero manchetes por rodada. Vale investigar
-se o portal depender mais de cobertura de kart brasileiro/europeu.
+### Fontes que já tiveram problema (histórico, resolvido)
+`Vroomkart` estava configurado com uma URL de RSS que não funciona mais
+(`vroomkart.com/rss.xml`) — o site não expõe RSS ativo, então foi trocado
+para raspagem de listagem (`type: list`, mesma técnica dos sites
+brasileiros), apontando para `vroomkart.com/news`. `Kart Motor`
+(kartmotor.com.br) foi **removido de propósito**: o robots.txt do site
+proíbe acesso automatizado, e isso é respeitado em vez de contornado — se
+esse conteúdo for importante para o portal, o caminho certo é contato
+direto com o site para parceria/licenciamento, não raspagem contra a
+vontade explícita deles. Ao investigar uma fonte "vazia", sempre confira o
+`robots.txt` do domínio antes de assumir que é só um bug técnico.
 
 ## Estrutura
 
