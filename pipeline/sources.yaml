@@ -1,19 +1,54 @@
-# Fontes de notícia (feeds RSS).
-# Para adicionar/remover uma fonte, basta editar esta lista.
-# "name" aparece como crédito no rodapé de cada matéria.
-# Se um feed parar de funcionar, troque a URL aqui (veja alternativas comentadas).
+# Fontes de notícia.
+#
+# Duas formas de fonte:
+#   type: rss   -> feed RSS normal (feedparser)
+#   type: list  -> site sem RSS: o pipeline lê a página de listagem e
+#                  extrai os links de matéria que contenham "link_contains"
+#
+# Para adicionar/remover uma fonte, edite esta lista.
 
 feeds:
+  # --- Fórmula 1 / geral ---
   - name: "Motorsport.com"
+    type: rss
     url: "https://www.motorsport.com/rss/all/news/"
 
   - name: "Autosport"
+    type: rss
     url: "https://www.autosport.com/rss/all/news/"
 
   - name: "The Race"
+    type: rss
     url: "https://the-race.com/feed/"
-    # alternativa por categoria: https://the-race.com/category/formula-1/feed/
 
   - name: "RACER"
+    type: rss
     url: "https://racer.com/feed/"
-    # alternativa por categoria: https://racer.com/category/motorsports/feed/
+
+  - name: "Formula1.com"
+    type: rss
+    url: "https://www.formula1.com/en/latest/all.xml"
+
+  - name: "FIA"
+    type: rss
+    url: "https://www.fia.com/rss/press-release"
+
+  # --- Kart (europeu / internacional) ---
+  - name: "Vroomkart"
+    type: rss
+    url: "https://www.vroomkart.com/rss.xml"
+
+  - name: "eKarting News"
+    type: rss
+    url: "https://ekartingnews.com/feed"
+
+  # --- Kart / automobilismo brasileiro (sem RSS -> raspagem da listagem) ---
+  - name: "Kart Motor"
+    type: list
+    list_url: "https://www.kartmotor.com.br/"
+    link_contains: "/noticias/"
+
+  - name: "CBA"
+    type: list
+    list_url: "https://www.cba.org.br/"
+    link_contains: "noticiasinfo"

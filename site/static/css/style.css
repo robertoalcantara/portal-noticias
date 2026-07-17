@@ -15,14 +15,15 @@
 
   /* cor por categoria — a mesma lógica de um painel de setores,
      reaproveitada aqui como código de disciplina de corrida */
+  --kart: #2e8b57;
   --f1: #e4572e;
-  --indycar: #2e6f95;
+  --f2: #3a6ea5;
+  --f3: #8e44ad;
+  --f4: #c9a227;
+  --gt3: #1590a6;
+  --wec: #4a4e9e;
+  --indy: #d1495b;
   --nascar: #b8790a;
-  --motogp: #7b2cbf;
-  --endurance: #157f6e;
-  --rally: #5b7a2e;
-  --formula-e: #0091ad;
-  --auto: #5b616e;
 
   --max: 1160px;
 
@@ -103,14 +104,15 @@ img { display: block; width: 100%; height: 100%; object-fit: cover; }
   font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em;
   padding: 3px 10px; border-radius: 4px; color: #fff;
 }
+.chip-kart { background: var(--kart); }
 .chip-f1 { background: var(--f1); }
-.chip-indycar { background: var(--indycar); }
+.chip-f2 { background: var(--f2); }
+.chip-f3 { background: var(--f3); }
+.chip-f4 { background: var(--f4); }
+.chip-gt3 { background: var(--gt3); }
+.chip-wec { background: var(--wec); }
+.chip-indy { background: var(--indy); }
 .chip-nascar { background: var(--nascar); }
-.chip-motogp { background: var(--motogp); }
-.chip-endurance { background: var(--endurance); }
-.chip-rally { background: var(--rally); }
-.chip-formula-e { background: var(--formula-e); }
-.chip-auto { background: var(--auto); }
 
 .tag {
   font-family: var(--mono); font-size: 11px; color: var(--ink);
@@ -132,14 +134,15 @@ img { display: block; width: 100%; height: 100%; object-fit: cover; }
   text-shadow: 0 1px 3px rgba(0,0,0,0.25);
 }
 .placeholder-hero .placeholder-mark { font-size: 22px; }
+.placeholder-kart { background-color: var(--kart); }
 .placeholder-f1 { background-color: var(--f1); }
-.placeholder-indycar { background-color: var(--indycar); }
+.placeholder-f2 { background-color: var(--f2); }
+.placeholder-f3 { background-color: var(--f3); }
+.placeholder-f4 { background-color: var(--f4); }
+.placeholder-gt3 { background-color: var(--gt3); }
+.placeholder-wec { background-color: var(--wec); }
+.placeholder-indy { background-color: var(--indy); }
 .placeholder-nascar { background-color: var(--nascar); }
-.placeholder-motogp { background-color: var(--motogp); }
-.placeholder-endurance { background-color: var(--endurance); }
-.placeholder-rally { background-color: var(--rally); }
-.placeholder-formula-e { background-color: var(--formula-e); }
-.placeholder-auto { background-color: var(--auto); }
 
 /* ---------- main / seções ---------- */
 main.wrap { padding-top: 32px; padding-bottom: 72px; }
@@ -223,13 +226,6 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
   margin: 1.4em 0; padding: 4px 0 4px 18px; border-left: 3px solid var(--f1);
   color: var(--muted); font-style: italic;
 }
-
-.attribution {
-  background: var(--bg-alt); border: 1px solid var(--line); border-radius: 8px;
-  padding: 16px 18px; margin: 36px 0 24px; font-size: 14.5px;
-}
-.attribution strong { display: block; margin-bottom: 4px; }
-.attribution a { color: var(--f1); font-family: var(--mono); font-size: 13px; }
 
 .tags { display: flex; gap: 8px; flex-wrap: wrap; margin: 22px 0; }
 .back { margin-top: 30px; }

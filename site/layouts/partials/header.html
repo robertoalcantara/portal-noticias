@@ -1,12 +1,12 @@
 <header class="site-head">
   <div class="wrap head-inner">
     <a class="brand" href="{{ "/" | relURL }}">
-      <span class="brand-mark">GRID</span>
+      <span class="brand-mark">BRGrid</span>
       <span class="brand-tag">{{ site.Params.tagline }}</span>
     </a>
     <nav class="nav" aria-label="Categorias">
       <a href="{{ "/posts/" | relURL }}">Últimas</a>
-      {{ $categoryList := slice "Fórmula 1" "IndyCar" "NASCAR" "MotoGP" "Endurance" "Rally" "Fórmula E" "Automobilismo" }}
+      {{ $categoryList := slice "F1" "F2" "F3" "F4" "Kart" "GT3" "WEC" "Indy" "NASCAR" }}
       {{ range $categoryList }}
         {{ $catName := . }}
         {{ $slug := $catName | urlize }}

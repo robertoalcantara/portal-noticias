@@ -1,0 +1,4 @@
+{{- /* Recebe o número do mês (1-12) e devolve o nome completo em português. */ -}}
+{{- $m := int . -}}
+{{- $names := slice "janeiro" "fevereiro" "março" "abril" "maio" "junho" "julho" "agosto" "setembro" "outubro" "novembro" "dezembro" -}}
+{{- index $names (sub $m 1) -}}

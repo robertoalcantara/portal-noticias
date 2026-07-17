@@ -1,0 +1,8 @@
+{{- /* Recebe a lista de sources (Params.sources) e devolve texto formatado. */ -}}
+{{- $sources := . -}}
+{{- if $sources -}}
+  {{- index $sources 0 -}}
+  {{- if gt (len $sources) 1 -}}
+    {{- printf " +%d fontes" (sub (len $sources) 1) -}}
+  {{- end -}}
+{{- end -}}

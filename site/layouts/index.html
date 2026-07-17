@@ -10,7 +10,7 @@
     </section>
   {{ else }}
     {{ $hero := index $posts 0 }}
-    {{ $heroCat := "Automobilismo" }}
+    {{ $heroCat := "Kart" }}
     {{ with $hero.Params.categories }}{{ $heroCat = index . 0 }}{{ end }}
     {{ $rest := after 1 $posts }}
     {{ $latest := first 6 $rest }}
@@ -32,8 +32,8 @@
         <h1 class="hero-title"><a href="{{ $hero.RelPermalink }}">{{ $hero.Title }}</a></h1>
         {{ with $hero.Params.summary }}<p class="hero-dek">{{ . }}</p>{{ end }}
         <p class="meta">
-          <time datetime="{{ $hero.Date.Format "2006-01-02" }}">{{ $hero.Date.Format "02 jan 2006, 15:04" }}</time>
-          {{ with $hero.Params.source_name }}<span class="dot">•</span>{{ . }}{{ end }}
+          <time datetime="{{ $hero.Date.Format "2006-01-02" }}">{{ printf "%02d %s %d, %02d:%02d" $hero.Date.Day (partial "ptmonth.html" $hero.Date.Month) $hero.Date.Year $hero.Date.Hour $hero.Date.Minute }}</time>
+          {{ with $hero.Params.sources }}<span class="dot">•</span>{{ partial "sourcelabel.html" . }}{{ end }}
         </p>
       </div>
     </section>
@@ -47,7 +47,7 @@
       </section>
     {{ end }}
 
-    {{ $categoryList := slice "Fórmula 1" "IndyCar" "NASCAR" "MotoGP" "Endurance" "Rally" "Fórmula E" "Automobilismo" }}
+    {{ $categoryList := slice "F1" "F2" "F3" "F4" "Kart" "GT3" "WEC" "Indy" "NASCAR" }}
     {{ range $categoryList }}
       {{ $catName := . }}
       {{ $catPosts := where $posts "Params.categories" "intersect" (slice $catName) }}

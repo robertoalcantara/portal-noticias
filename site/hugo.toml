@@ -1,17 +1,17 @@
 # baseURL do site publicado no Cloudflare Pages (projeto "portal-noticias").
 # O Cloudflare adicionou um sufixo aleatório ao subdomínio (comum quando o
-# nome já tem alguma colisão). Se você conectar um domínio próprio depois,
-# troque aqui.
+# nome já tem alguma colisão). Se você conectar um domínio próprio depois
+# (ex.: brgrid.com.br), troque aqui.
 baseURL = "https://portal-noticias-cz7.pages.dev/"
 languageCode = "pt-br"
-title = "GRID"
+title = "BRGrid"
 enableRobotsTXT = true
 paginate = 20
 timeZone = "America/Fortaleza"
 
 [params]
-  tagline = "Notícias de automobilismo"
-  description = "Cobertura de automobilismo — Fórmula 1, IndyCar, NASCAR, MotoGP, Endurance e mais."
+  tagline = "Kart, F1, F2, F3, F4, GT3, WEC, Indy e NASCAR"
+  description = "Cobertura de Kart, Fórmula 1, F2, F3, F4, GT3, WEC, IndyCar e NASCAR — Brasil e o mundo."
 
 [taxonomies]
   categoria = "categories"
