@@ -471,9 +471,9 @@ def main() -> int:
         groups = cluster_and_classify(candidates)
     except Exception as exc:  # noqa: BLE001
         print(f"erro ao agrupar/classificar: {exc}", file=sys.stderr)
-        for c in candidates:
-            seen.add(c["link"])
-        save_seen(seen)
+        # NÃO marca como visto: falha no agrupamento é normalmente transitória
+        # (rede, resposta inesperada). Assim as mesmas manchetes são
+        # tentadas de novo na próxima rodada em vez de se perderem.
         return 1
 
     created = 0
