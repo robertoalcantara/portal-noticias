@@ -26,14 +26,20 @@ Variáveis de ambiente:
   MAX_PER_FEED       (opcional, padrão: 4 — manchetes novas por fonte/rodada)
   MAX_SOURCE_CHARS   (opcional, padrão: 6000 — corte de CADA texto-fonte)
   DRY_RUN            (opcional, "1" para não chamar a API — usa texto de teste)
+  PEXELS_API_KEY     (opcional — sem ela, pula direto para a ilustração de
+                       categoria; com ela, tenta achar uma foto de banco
+                       primeiro)
 """
 
 from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import sys
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urljoin
@@ -47,6 +53,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCES_FILE = ROOT / "pipeline" / "sources.yaml"
 SEEN_FILE = ROOT / "pipeline" / "seen.json"
 POSTS_DIR = ROOT / "site" / "content" / "posts"
+CATEGORY_IMAGES_DIR = ROOT / "site" / "static" / "images" / "categories"
 
 MODEL = os.environ.get("MODEL", "claude-haiku-4-5-20251001")
 FACTCHECK_MODEL = os.environ.get("FACTCHECK_MODEL", "claude-sonnet-5")
@@ -54,10 +61,54 @@ CLUSTER_MODEL = os.environ.get("CLUSTER_MODEL", "claude-sonnet-5")
 MAX_PER_FEED = int(os.environ.get("MAX_PER_FEED", "4"))
 MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
+PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
 
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
 # na etapa de classificação (não é gerada matéria).
 ALLOWED_CATEGORIES = ["Kart", "F1", "F2", "F3", "F4", "GT3", "WEC", "Indy", "NASCAR"]
+
+# Mesma chave usada nos partials do Hugo (catkey.html) — mantém o nome do
+# arquivo de imagem em sincronia com a cor/slug usada no site.
+CATEGORY_SLUGS = {
+    "Kart": "kart",
+    "F1": "f1",
+    "F2": "f2",
+    "F3": "f3",
+    "F4": "f4",
+    "GT3": "gt3",
+    "WEC": "wec",
+    "Indy": "indy",
+    "NASCAR": "nascar",
+}
+
+# Termos de busca em inglês para o banco de fotos (Pexels não tem fotos dos
+# eventos específicos das matérias, então buscamos algo genérico e coerente
+# com a categoria).
+CATEGORY_STOCK_QUERIES = {
+    "Kart": "go kart racing track",
+    "F1": "formula one race car track",
+    "F2": "formula racing car track",
+    "F3": "formula racing car track",
+    "F4": "formula racing car track",
+    "GT3": "GT race car track",
+    "WEC": "endurance race car track night",
+    "Indy": "indycar open wheel race",
+    "NASCAR": "nascar stock car race",
+}
+
+# Prompt para gerar a ilustração de categoria (fallback), uma vez só por
+# categoria — depois fica em cache como arquivo estático no site.
+CATEGORY_IMAGE_PROMPTS = {
+    "Kart": "dynamic go-kart racing on an outdoor circuit, motion blur, editorial motorsport photography, no text, no logos",
+    "F1": "Formula 1 open-wheel race car speeding on track, editorial motorsport photography, no text, no logos",
+    "F2": "Formula racing open-wheel car on track, editorial motorsport photography, no text, no logos",
+    "F3": "Formula racing open-wheel car cornering on track, editorial motorsport photography, no text, no logos",
+    "F4": "junior formula racing open-wheel car on track, editorial motorsport photography, no text, no logos",
+    "GT3": "GT race car cornering on track at sunset, editorial motorsport photography, no text, no logos",
+    "WEC": "endurance race car on track at night with light trails, editorial motorsport photography, no text, no logos",
+    "Indy": "IndyCar open-wheel race car on oval track, editorial motorsport photography, no text, no logos",
+    "NASCAR": "NASCAR stock car race pack on oval track, editorial motorsport photography, no text, no logos",
+}
 
 CLUSTER_SYSTEM_PROMPT = f"""\
 Você organiza a pauta de um portal de notícias de automobilismo chamado BRGrid.
@@ -433,6 +484,80 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
 
 
 # --------------------------------------------------------------------------
+# Imagens: banco de fotos (Pexels) com ilustração de categoria como reserva
+# --------------------------------------------------------------------------
+
+def fetch_stock_image(categoria: str) -> str | None:
+    """Busca uma foto de banco (Pexels) genérica para a categoria.
+    Devolve None se não houver chave configurada, não achar nada, ou der erro
+    — nesses casos quem chamou deve cair para ensure_category_fallback_image.
+    """
+    if not PEXELS_API_KEY:
+        return None
+    query = CATEGORY_STOCK_QUERIES.get(categoria, "motorsport racing")
+    url = (
+        "https://api.pexels.com/v1/search?"
+        + urllib.parse.urlencode({"query": query, "per_page": 15, "orientation": "landscape"})
+    )
+    req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao buscar foto no Pexels ({exc})", file=sys.stderr)
+        return None
+    photos = data.get("photos") or []
+    if not photos:
+        return None
+    photo = random.choice(photos)
+    src = photo.get("src", {})
+    return src.get("large") or src.get("medium") or src.get("original")
+
+
+def ensure_category_fallback_image(categoria: str) -> str:
+    """Garante que existe uma ilustração gerada para a categoria, gerando
+    (via Pollinations.ai, sem chave de API) só na primeira vez — depois fica
+    em cache como arquivo estático no site. Devolve o caminho relativo
+    (ex.: "/images/categories/f1.jpg") ou "" se a geração falhar.
+    """
+    slug = CATEGORY_SLUGS.get(categoria, "kart")
+    rel_url = f"/images/categories/{slug}.jpg"
+    path = CATEGORY_IMAGES_DIR / f"{slug}.jpg"
+    if path.exists() and path.stat().st_size > 0:
+        return rel_url
+
+    prompt = CATEGORY_IMAGE_PROMPTS.get(categoria, "motorsport racing action, editorial photo, no text")
+    encoded_prompt = urllib.parse.quote(prompt)
+    # seed fixo por categoria: gera sempre a mesma imagem se precisar regerar
+    gen_url = (
+        f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        f"?width=1200&height=750&nologo=true&seed={abs(hash(slug)) % 100000}"
+    )
+    try:
+        CATEGORY_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(gen_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            image_bytes = resp.read()
+        if len(image_bytes) < 1000:  # resposta suspeita (erro disfarçado de imagem)
+            raise ValueError("resposta muito pequena para ser uma imagem válida")
+        path.write_bytes(image_bytes)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao gerar ilustração de categoria ({exc})", file=sys.stderr)
+        return ""
+    return rel_url
+
+
+def get_article_image(categoria: str) -> str:
+    """Foto de banco quando encontra; ilustração de categoria como reserva."""
+    if DRY_RUN:
+        return ""
+    image = fetch_stock_image(categoria)
+    if image:
+        return image
+    return ensure_category_fallback_image(categoria)
+
+
+# --------------------------------------------------------------------------
 # Gravação do Markdown
 # --------------------------------------------------------------------------
 
@@ -547,6 +672,7 @@ def main() -> int:
 
             source_names = [c["name"] for c in group_candidates]
             publish_date = max(c["date"] for c in group_candidates)
+            article["image"] = get_article_image(article.get("categoria", ALLOWED_CATEGORIES[0]))
             write_post(article, source_names, links, publish_date)
             created += 1
         except Exception as exc:  # noqa: BLE001

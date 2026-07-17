@@ -145,6 +145,31 @@ testado (ver `pipeline/generate.py`, funções `cluster_and_classify`,
 `rewrite_with_claude`, `factcheck_with_claude`) para qualquer fonte futura
 que precisar de uma regra própria.
 
+### Imagens: banco de fotos com ilustração de categoria como reserva
+Cada matéria ganha uma imagem em duas etapas (`get_article_image` em
+`pipeline/generate.py`):
+1. **Banco de fotos (Pexels)** — busca por um termo genérico da categoria
+   (`CATEGORY_STOCK_QUERIES`; não dá pra achar foto do evento específico da
+   matéria, então a busca é por categoria mesmo) e escolhe uma foto
+   aleatória entre os resultados. Precisa do secret `PEXELS_API_KEY`
+   (gratuito, sem cartão — pexels.com/api). Sem essa chave configurada,
+   pula direto para o passo 2.
+2. **Ilustração de categoria (Pollinations.ai)** — se não achou foto (ou
+   não tem chave), gera uma ilustração via Pollinations.ai (sem precisar
+   de chave de API) usando o prompt de `CATEGORY_IMAGE_PROMPTS`. Só gera
+   **uma vez por categoria**: o arquivo fica em cache em
+   `site/static/images/categories/{slug}.jpg` e é reaproveitado por todas
+   as matérias daquela categoria dali pra frente. O workflow já comita
+   essa pasta junto com as matérias.
+
+Se as duas etapas falharem (sem chave Pexels e Pollinations fora do ar),
+`image` fica `""` e o template usa o placeholder colorido por categoria
+que já existia (não quebra o layout).
+
+Licença: fotos do Pexels não exigem atribuição (mas é bem-vindo creditar,
+se algum dia quiser adicionar isso). Ilustrações do Pollinations são
+geradas a partir de um prompt, sem base numa foto de terceiros.
+
 ## Estrutura
 
 ```
@@ -171,6 +196,12 @@ Crie um repositório novo e envie estes arquivos.
 No repositório: **Settings → Secrets and variables → Actions → New repository secret**
 - Nome: `ANTHROPIC_API_KEY`
 - Valor: sua chave (crie em <https://console.anthropic.com/>)
+
+### 2b. (Opcional) Chave do Pexels para fotos de banco
+Mesmo caminho de secret, nome `PEXELS_API_KEY` — crie em
+<https://www.pexels.com/api/> (gratuito, instantâneo). Sem essa chave, as
+matérias usam só a ilustração de categoria gerada automaticamente (não
+quebra nada, só fica sem foto de banco real).
 
 ### 3. Hospedagem: Cloudflare Pages (já automatizado)
 O próprio workflow do GitHub Actions builda o site com Hugo e publica no
@@ -221,6 +252,8 @@ cd site && hugo server
 | Regras de agrupamento por tema | `CLUSTER_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de checagem de fatos | `FACTCHECK_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Nome e visual do site | `site/hugo.toml` e `site/static/css/style.css` |
+| Termo de busca de foto por categoria | `CATEGORY_STOCK_QUERIES` em `pipeline/generate.py` |
+| Prompt da ilustração de categoria | `CATEGORY_IMAGE_PROMPTS` em `pipeline/generate.py` (apague o arquivo em `site/static/images/categories/` pra forçar regenerar) |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.
