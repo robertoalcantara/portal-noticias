@@ -345,7 +345,13 @@ def cluster_and_classify(candidates: list[dict]) -> list[dict]:
         messages=[{"role": "user", "content": user_content}],
     )
     raw = "".join(block.text for block in message.content if block.type == "text")
-    data = parse_model_json(raw)
+    try:
+        data = parse_model_json(raw)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao parsear resposta do agrupamento: {exc}", file=sys.stderr)
+        print(f"    resposta bruta ({len(raw)} chars): {raw[:500]!r}", file=sys.stderr)
+        print(f"    stop_reason: {getattr(message, 'stop_reason', '?')}", file=sys.stderr)
+        raise
     return data.get("grupos", [])
 
 
