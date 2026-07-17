@@ -57,6 +57,17 @@ jobs:
         working-directory: site
         run: hugo --gc --minify
 
+      - name: Garantir que o projeto existe no Cloudflare Pages
+        # "wrangler pages deploy" não cria o projeto sozinho em ambiente não
+        # interativo (falha com "Project not found"). Este passo cria o
+        # projeto na primeira vez; nas rodadas seguintes a API só retorna um
+        # erro de "já existe", que é ignorado propositalmente (|| true).
+        run: |
+          curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"portal-noticias","production_branch":"main"}' || true
+
       - name: Deploy no Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
