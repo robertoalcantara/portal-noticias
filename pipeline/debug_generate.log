@@ -1,0 +1,45 @@
+  feed vazio ou inválido (https://www.vroomkart.com/rss.xml)
+  listagem vazia (https://www.kartmotor.com.br/)
+
+== Motorsport.com ==
+  4 manchete(s) nova(s)
+
+== Autosport ==
+  4 manchete(s) nova(s)
+
+== The Race ==
+  4 manchete(s) nova(s)
+
+== RACER ==
+  4 manchete(s) nova(s)
+
+== Formula1.com ==
+  4 manchete(s) nova(s)
+
+== FIA ==
+  4 manchete(s) nova(s)
+
+== Vroomkart ==
+  0 manchete(s) nova(s)
+
+== eKarting News ==
+  4 manchete(s) nova(s)
+
+== Kart Motor ==
+  0 manchete(s) nova(s)
+
+== CBA ==
+Traceback (most recent call last):
+  File "/home/runner/work/portal-noticias/portal-noticias/pipeline/generate.py", line 529, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/runner/work/portal-noticias/portal-noticias/pipeline/generate.py", line 442, in main
+    candidates = collect_all_candidates(feeds, seen)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/portal-noticias/portal-noticias/pipeline/generate.py", line 287, in collect_all_candidates
+    found = collect_list_candidates(feed_cfg, seen)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/portal-noticias/portal-noticias/pipeline/generate.py", line 259, in collect_list_candidates
+    if not data or not data.get("text") or len(data["text"]) < 120:
+                       ^^^^^^^^
+AttributeError: 'Document' object has no attribute 'get'
