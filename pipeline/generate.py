@@ -252,18 +252,31 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
             continue
         try:
             article_html = trafilatura.fetch_url(link)
+            if not article_html:
+                continue
             data = trafilatura.bare_extraction(article_html, with_metadata=True)
         except Exception as exc:  # noqa: BLE001
             print(f"    aviso: falha ao ler {link} ({exc})", file=sys.stderr)
             continue
-        if not data or not data.get("text") or len(data["text"]) < 120:
+        if not data:
             continue
-        title = data.get("title") or link
+        # trafilatura pode devolver um dict OU um objeto Document, dependendo
+        # da versão/parâmetros — trata os dois casos.
+        if isinstance(data, dict):
+            text = data.get("text")
+            title = data.get("title")
+            raw_date = data.get("date")
+        else:
+            text = getattr(data, "text", None)
+            title = getattr(data, "title", None)
+            raw_date = getattr(data, "date", None)
+        if not text or len(text) < 120:
+            continue
+        title = title or link
         date = datetime.now(timezone.utc)
-        raw_date = data.get("date")
         if raw_date:
             try:
-                date = datetime.fromisoformat(raw_date).replace(tzinfo=timezone.utc)
+                date = datetime.fromisoformat(str(raw_date)).replace(tzinfo=timezone.utc)
             except Exception:  # noqa: BLE001
                 pass
         out.append(
@@ -271,9 +284,9 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
                 "name": name,
                 "title": title,
                 "link": link,
-                "summary": data["text"][:500],
+                "summary": text[:500],
                 "date": date,
-                "_full_text": data["text"],
+                "_full_text": text,
             }
         )
     return out
