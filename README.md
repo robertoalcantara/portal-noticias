@@ -14,6 +14,93 @@ fontes (RSS + sites sem feed) → agrupar/classificar → Haiku reescreve
                     (GitHub Actions, a cada 3h)         (Cloudflare Pages)
 ```
 
+## Para modelos de IA / agentes que forem mexer neste repositório
+
+Leia esta seção inteira antes de editar qualquer coisa — ela existe pra você
+não perder tempo redescobrindo decisões e bugs que já foram resolvidos.
+
+**O que este projeto é, em uma frase:** um script Python (`pipeline/generate.py`)
+que roda no GitHub Actions a cada 3h, lê notícias de várias fontes, usa a API
+do Claude em três etapas (agrupar → escrever → revisar), grava o resultado
+como arquivos Markdown, e um site Hugo estático é buildado e publicado no
+Cloudflare Pages — tudo dentro do mesmo workflow, sem servidor nenhum rodando
+o tempo todo.
+
+### Mapa mental do fluxo (`pipeline/generate.py`, função `main()`)
+1. `collect_all_candidates()` — para cada fonte em `sources.yaml`, coleta
+   manchetes novas (não presentes em `seen.json`). Duas variantes:
+   `collect_rss_candidates` (feed normal) e `collect_list_candidates`
+   (site sem RSS: baixa a página de listagem, extrai links por regex +
+   `link_contains`, baixa cada artigo com `trafilatura`).
+2. `cluster_and_classify()` — UMA chamada ao Claude (Sonnet) recebe TODAS as
+   manchetes da rodada e devolve grupos: quais manchetes tratam do mesmo
+   fato (mesmo vindas de fontes diferentes) e qual categoria cada grupo tem
+   — ou `"DESCARTAR"` se estiver fora do escopo do site.
+3. Para cada grupo válido: baixa o texto completo de cada fonte do grupo,
+   chama `rewrite_with_claude()` (Haiku, gera UMA matéria agregando as
+   fontes) e depois `factcheck_with_claude()` (Sonnet, compara o rascunho
+   contra os textos-fonte e corrige/remove o que não está lá).
+4. `write_post()` grava o Markdown em `site/content/posts/` com frontmatter
+   TOML. Note que `sources` e `source_urls` são LISTAS (uma matéria pode ter
+   várias fontes) — não existe mais `source_name`/`source_url` singular.
+
+### Decisões não-óbvias (e por quê)
+- **Categorias são uma lista fechada** (`ALLOWED_CATEGORIES`). Qualquer
+  manchete fora disso é descartada na etapa de classificação — o filtro
+  acontece ANTES de baixar o texto completo ou gastar tokens de geração,
+  pra economizar. Se for ampliar o escopo, mexa em `ALLOWED_CATEGORIES` E
+  nos partials Hugo `catkey.html`/`catlabel.html`/CSS (cor por categoria) —
+  os três precisam ficar em sincronia manualmente, não há fonte única.
+- **Sem link para a matéria original no rodapé.** Decisão explícita do
+  dono do projeto — a fonte é creditada só pelo nome, no topo. Não
+  reintroduza o link sem confirmar com ele.
+- **`seen.json` é a memória do pipeline.** Ele impede reprocessar a mesma
+  URL. Se você resetar categorias/fontes de forma incompatível com o
+  conteúdo já publicado (como aconteceu na migração pra "BRGrid"), o mais
+  simples é apagar todos os `.md` de `site/content/posts/` E zerar
+  `seen.json` para `[]` juntos, senão sobra lixo misturado.
+- **Falha no agrupamento NÃO marca manchetes como vistas** (de propósito —
+  já causei perda de ~29 manchetes reais fazendo isso errado numa versão
+  anterior). Se mexer no tratamento de erro de `cluster_and_classify`,
+  preserve esse comportamento.
+- **`trafilatura.bare_extraction()` às vezes devolve um objeto `Document`,
+  às vezes um `dict`**, dependendo da versão/parâmetros — já causou um
+  crash em produção. `collect_list_candidates` trata os dois casos
+  explicitamente; não assuma um formato só se tocar nesse código.
+- **Formatação de data do Hugo:** o layout do Go só reconhece o token
+  `"Jan"` (maiúsculo) para nome de mês — `"jan"` minúsculo não é um token
+  válido e o Hugo imprime a string literal (bug real que já aconteceu
+  aqui: toda data aparecia "jan" fixo). As datas em português usam os
+  partials `ptmonth.html`/`ptmonth_long.html`, não `.Date.Format` direto
+  com nomes de mês.
+- **O projeto no Cloudflare Pages precisa existir ANTES do primeiro
+  `wrangler pages deploy`** — em ambiente não-interativo (CI) o wrangler
+  não cria o projeto sozinho. O workflow tem um passo `curl` idempotente
+  que garante isso a cada rodada (ignora erro de "já existe" com `|| true`).
+
+### Se algo quebrar e você precisar depurar um workflow run
+Ambientes de agente costumam ter acesso de rede restrito e não conseguem
+baixar os logs brutos do GitHub Actions (o endpoint de logs redireciona
+para `results-receiver.actions.githubusercontent.com` ou domínios de blob
+storage, tipicamente fora de qualquer allowlist). Truque que funcionou aqui:
+adicione um passo temporário no workflow que redireciona a saída do script
+para um arquivo e faz commit dele no repo (`git add/commit/push` dentro do
+próprio job), aí dá pra ler o conteúdo via API do GitHub normalmente
+(`GET /repos/.../contents/{path}`). Remova esse passo depois de resolver —
+não é pra ficar em produção.
+
+Outro detalhe: um step com `continue-on-error: true` que falhou aparece
+como `conclusion: "success"` na API de jobs (o campo que reflete a falha
+real é `outcome`, que a API de listagem de jobs não expõe). Não confie só
+no `conclusion` pra saber se a geração realmente funcionou — confira o log.
+
+### Fontes que não estão trazendo nada no momento
+`Vroomkart` (feed RSS aparentemente fora do ar ou mudou de URL) e
+`Kart Motor` (listagem sem os links esperados — pode ser conteúdo
+carregado via JS, ou a substring `link_contains` desatualizada). Não
+travam o pipeline, só ficam com zero manchetes por rodada. Vale investigar
+se o portal depender mais de cobertura de kart brasileiro/europeu.
+
 ## Estrutura
 
 ```
