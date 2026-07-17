@@ -1,12 +1,13 @@
 # GRID — portal de notícias de automobilismo (automatizado)
 
 Pipeline que lê feeds RSS de portais de automobilismo, reescreve cada matéria em
-português usando a **API do Claude** e publica um site estático (**Hugo**) que se
-atualiza sozinho. Sem servidor para manter.
+português usando a **API do Claude** (Haiku), revisa os fatos com um segundo
+passe usando um **modelo mais forte (Sonnet)** e publica um site estático
+(**Hugo**) que se atualiza sozinho. Sem servidor para manter.
 
 ```
-feeds RSS  →  script Python + Claude  →  Markdown  →  Hugo  →  site publicado
-                    (GitHub Actions, a cada 3h)         (Cloudflare Pages / Netlify)
+feeds RSS → Haiku reescreve → Sonnet revisa fatos → Markdown → Hugo → site publicado
+                    (GitHub Actions, a cada 3h)                (Cloudflare Pages / Netlify)
 ```
 
 ## Estrutura
@@ -78,15 +79,20 @@ cd site && hugo server
 | Trocar/adicionar fontes | `pipeline/sources.yaml` |
 | Matérias por feed a cada rodada | `MAX_PER_FEED` (workflow ou env), padrão 5 |
 | Frequência de atualização | linha `cron` em `.github/workflows/update.yml` |
-| Modelo do Claude | env `MODEL` (padrão: `claude-haiku-4-5-20251001`) |
+| Modelo de geração (1ª passada) | env `MODEL` (padrão: `claude-haiku-4-5-20251001`) |
+| Modelo de revisão de fatos (2ª passada) | env `FACTCHECK_MODEL` (padrão: `claude-sonnet-5`) |
 | Tom / regras do texto | `SYSTEM_PROMPT` em `pipeline/generate.py` |
+| Regras de checagem de fatos | `FACTCHECK_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Nome e visual do site | `site/hugo.toml` e `site/static/css/style.css` |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.
-- **API do Claude**: use o Haiku para o volume; dá fração de centavo por matéria.
-  Ative o **Batch API** (50% mais barato) se quiser reduzir ainda mais — notícia
-  não precisa ser instantânea. Confira o preço atual em <https://docs.claude.com>.
+- **API do Claude**: cada matéria agora gera **duas** chamadas — Haiku (geração) +
+  Sonnet (revisão de fatos). O Sonnet é mais caro por token, mas o volume de
+  texto por matéria é pequeno, então o custo total ainda fica em poucos
+  centavos por matéria. Ative o **Batch API** (50% mais barato) se quiser
+  reduzir ainda mais — notícia não precisa ser instantânea. Confira o preço
+  atual em <https://docs.claude.com>.
 
 ## Importante — direitos autorais
 Fato não tem direito autoral, mas a **expressão** (texto, estrutura e principalmente

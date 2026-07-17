@@ -5,16 +5,22 @@ Gera matérias para o portal a partir de feeds RSS.
 Fluxo:
   1. Lê a lista de feeds em sources.yaml
   2. Para cada matéria nova (não vista antes), baixa o texto da fonte
-  3. Pede ao Claude para produzir um texto ORIGINAL em português (fatos + resumo),
-     sempre com crédito e link para a fonte
-  4. Grava um arquivo Markdown em site/content/posts/ (Hugo publica sozinho)
+  3. Pede ao Claude (modelo rápido/barato) para produzir um texto ORIGINAL em
+     português (fatos + resumo), sempre com crédito e link para a fonte
+  4. Passa o texto gerado por uma SEGUNDA revisão com um modelo mais forte
+     (Sonnet), que compara cada afirmação contra o texto-fonte original e
+     corrige qualquer nome, número, nacionalidade ou resultado inventado
+  5. Grava um arquivo Markdown em site/content/posts/ (Hugo publica sozinho)
 
 O script é resiliente: erros em uma matéria/feed não derrubam a execução inteira.
+Se a revisão falhar, a matéria da primeira passada é publicada mesmo assim
+(evita perder a matéria por causa de um erro na segunda chamada).
 Rode localmente com `python pipeline/generate.py` ou deixe o GitHub Actions rodar.
 
 Variáveis de ambiente:
   ANTHROPIC_API_KEY  (obrigatória, exceto em DRY_RUN)
-  MODEL              (opcional, padrão: claude-haiku-4-5-20251001)
+  MODEL              (opcional, padrão: claude-haiku-4-5-20251001 — geração)
+  FACTCHECK_MODEL    (opcional, padrão: claude-sonnet-5 — revisão/checagem)
   MAX_PER_FEED       (opcional, padrão: 5 — quantas matérias novas por feed/rodada)
   MAX_SOURCE_CHARS   (opcional, padrão: 6000 — corte do texto-fonte, controla custo)
   DRY_RUN            (opcional, "1" para não chamar a API — usa um texto de teste)
@@ -40,6 +46,7 @@ SEEN_FILE = ROOT / "pipeline" / "seen.json"
 POSTS_DIR = ROOT / "site" / "content" / "posts"
 
 MODEL = os.environ.get("MODEL", "claude-haiku-4-5-20251001")
+FACTCHECK_MODEL = os.environ.get("FACTCHECK_MODEL", "claude-sonnet-5")
 MAX_PER_FEED = int(os.environ.get("MAX_PER_FEED", "5"))
 MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
@@ -62,6 +69,39 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem crases), no format
   "categoria": "uma de: Fórmula 1, IndyCar, NASCAR, MotoGP, Endurance, Rally, Fórmula E, Automobilismo",
   "tags": ["até 4 tags curtas"],
   "corpo_markdown": "3 a 5 parágrafos em Markdown"
+}"""
+
+FACTCHECK_SYSTEM_PROMPT = """\
+Você é o revisor de fatos (fact-checker) de um portal brasileiro de automobilismo.
+Vai receber o TEXTO-FONTE original e um RASCUNHO em português gerado por outro
+editor a partir dele. Seu trabalho é comparar o rascunho contra o texto-fonte
+FRASE A FRASE e corrigir qualquer imprecisão.
+
+Verifique com atenção especial:
+- Nomes de pilotos, equipes, patrocinadores e circuitos
+- Nacionalidades e afiliações (equipe, categoria, fabricante)
+- Números: tempos, posições, datas, contagem de pontos, resultados
+- Relações de causa e efeito (ex.: quem lidera o quê, quem superou quem)
+- Qualquer detalhe que soe específico mas não apareça no texto-fonte
+
+Regras:
+- Se um dado do rascunho não está no texto-fonte e não pode ser inferido com
+  segurança, REMOVA ou GENERALIZE a frase — nunca mantenha um dado não verificado.
+- Corrija o dado errado quando o texto-fonte permitir confirmar o correto
+  (ex.: nacionalidade errada → corrija ou remova a menção).
+- Não adicione fatos novos que não estavam no rascunho nem no texto-fonte.
+- Preserve o tom jornalístico e a fluidez; corrija o mínimo necessário para
+  garantir precisão, sem reescrever o texto do zero.
+- Se o rascunho já estiver correto, devolva-o sem alterações.
+
+Responda APENAS com um objeto JSON válido (sem markdown, sem crases), EXATAMENTE
+no mesmo formato do rascunho recebido:
+{
+  "titulo": "...",
+  "linha_fina": "...",
+  "categoria": "...",
+  "tags": ["..."],
+  "corpo_markdown": "..."
 }"""
 
 
@@ -144,6 +184,29 @@ def rewrite_with_claude(title: str, source_text: str) -> dict:
     return parse_model_json(raw)
 
 
+def factcheck_with_claude(article: dict, source_text: str) -> dict:
+    """Segunda passada: usa um modelo mais forte para checar o rascunho
+    contra o texto-fonte e corrigir detalhes inventados ou incorretos."""
+    if DRY_RUN:
+        return article
+
+    from anthropic import Anthropic
+
+    client = Anthropic()
+    user_content = (
+        f"TEXTO-FONTE:\n{source_text[:MAX_SOURCE_CHARS]}\n\n"
+        f"RASCUNHO (JSON):\n{json.dumps(article, ensure_ascii=False)}"
+    )
+    message = client.messages.create(
+        model=FACTCHECK_MODEL,
+        max_tokens=1500,
+        system=FACTCHECK_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_content}],
+    )
+    raw = "".join(block.text for block in message.content if block.type == "text")
+    return parse_model_json(raw)
+
+
 def toml_list(items) -> str:
     return "[" + ", ".join(f'"{str(i).replace(chr(34), "")}"' for i in items) + "]"
 
@@ -213,6 +276,10 @@ def main() -> int:
 
             try:
                 article = rewrite_with_claude(title, source_text)
+                try:
+                    article = factcheck_with_claude(article, source_text)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"    aviso: revisão de fatos falhou, publicando rascunho ({exc})", file=sys.stderr)
                 write_post(article, name, link, entry_date(entry))
                 created += 1
                 new_in_feed += 1
