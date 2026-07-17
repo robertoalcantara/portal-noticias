@@ -1,5 +1,6 @@
-# Troque baseURL pela URL final (ex.: https://seu-portal.pages.dev/) depois de publicar.
-baseURL = "https://exemplo.pages.dev/"
+# baseURL do site publicado no Cloudflare Pages (projeto "portal-noticias").
+# Se você conectar um domínio próprio depois, troque aqui.
+baseURL = "https://portal-noticias.pages.dev/"
 languageCode = "pt-br"
 title = "GRID"
 enableRobotsTXT = true
