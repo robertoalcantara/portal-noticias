@@ -385,7 +385,7 @@ def cluster_and_classify(candidates: list[dict]) -> list[dict]:
     client = Anthropic()
     message = client.messages.create(
         model=CLUSTER_MODEL,
-        max_tokens=2000,
+        max_tokens=4096,
         system=CLUSTER_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
