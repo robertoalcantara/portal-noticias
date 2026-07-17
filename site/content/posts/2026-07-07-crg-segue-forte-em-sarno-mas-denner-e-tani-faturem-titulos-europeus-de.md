@@ -6,7 +6,7 @@ categories = ["Kart"]
 tags = ["Campeonato Europeu", "KZ", "KZ2", "Sarno"]
 sources = ["Vroomkart", "Vroomkart"]
 source_urls = ["https://www.vroomkart.com/news/46519/third-place-in-the-euro-kz-for-crg", "https://www.vroomkart.com/news/46509/euro-kz-denner-formula-ktm-pulls-off-a-stunning-title-upset-in-kz-while-tani-parolintm"]
-image = "/images/categories/kart.jpg"
+image = ""
 +++
 A rodada decisiva do Campeonato Europeu de Kart em Sarno, Itália, consolidou a força técnica da CRG nas categorias principais, apesar de resultados amargos na luta pelos títulos. A escuderia italiana terminou com componentes competitivos em ambas as classes, mas viu seus pilotos ficarem aquém das coroas.
 

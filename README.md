@@ -145,30 +145,25 @@ testado (ver `pipeline/generate.py`, funções `cluster_and_classify`,
 `rewrite_with_claude`, `factcheck_with_claude`) para qualquer fonte futura
 que precisar de uma regra própria.
 
-### Imagens: banco de fotos com ilustração de categoria como reserva
-Cada matéria ganha uma imagem em duas etapas (`get_article_image` em
-`pipeline/generate.py`):
-1. **Banco de fotos (Pexels)** — busca por um termo genérico da categoria
-   (`CATEGORY_STOCK_QUERIES`; não dá pra achar foto do evento específico da
-   matéria, então a busca é por categoria mesmo) e escolhe uma foto
-   aleatória entre os resultados. Precisa do secret `PEXELS_API_KEY`
-   (gratuito, sem cartão — pexels.com/api). Sem essa chave configurada,
-   pula direto para o passo 2.
-2. **Ilustração de categoria (Pollinations.ai)** — se não achou foto (ou
-   não tem chave), gera uma ilustração via Pollinations.ai (sem precisar
-   de chave de API) usando o prompt de `CATEGORY_IMAGE_PROMPTS`. Só gera
-   **uma vez por categoria**: o arquivo fica em cache em
-   `site/static/images/categories/{slug}.jpg` e é reaproveitado por todas
-   as matérias daquela categoria dali pra frente. O workflow já comita
-   essa pasta junto com as matérias.
+### Imagens: banco de fotos, sem ilustração de reserva
+Cada matéria tenta uma foto de banco (Pexels) por um termo genérico da
+categoria (`CATEGORY_STOCK_QUERIES` em `pipeline/generate.py`; não dá pra
+achar foto do evento específico da matéria, então a busca é por categoria
+mesmo) e escolhe uma foto aleatória entre os resultados. Precisa do secret
+`PEXELS_API_KEY` (gratuito, sem cartão — pexels.com/api).
 
-Se as duas etapas falharem (sem chave Pexels e Pollinations fora do ar),
-`image` fica `""` e o template usa o placeholder colorido por categoria
-que já existia (não quebra o layout).
+Se não achar (ou não tiver a chave configurada), a matéria fica **sem
+imagem** — `image` vazio — e o template usa o placeholder colorido por
+categoria que já existia (listra diagonal + nome da categoria). Não
+tentamos mais gerar uma ilustração por IA como reserva: já foi testado
+(via Pollinations.ai) e o resultado visual não ficou bom o suficiente,
+então foi removido de propósito. Se quiser retomar essa ideia depois, dá
+pra ver como estava implementado no histórico do git (commit que adiciona
+"banco de fotos Pexels + ilustração de categoria"), mas não reintroduza
+sem confirmar com o dono do projeto — foi uma decisão consciente de tirar.
 
 Licença: fotos do Pexels não exigem atribuição (mas é bem-vindo creditar,
-se algum dia quiser adicionar isso). Ilustrações do Pollinations são
-geradas a partir de um prompt, sem base numa foto de terceiros.
+se algum dia quiser adicionar isso).
 
 ## Estrutura
 
@@ -200,8 +195,8 @@ No repositório: **Settings → Secrets and variables → Actions → New reposi
 ### 2b. (Opcional) Chave do Pexels para fotos de banco
 Mesmo caminho de secret, nome `PEXELS_API_KEY` — crie em
 <https://www.pexels.com/api/> (gratuito, instantâneo). Sem essa chave, as
-matérias usam só a ilustração de categoria gerada automaticamente (não
-quebra nada, só fica sem foto de banco real).
+matérias ficam sem foto (usa o placeholder colorido por categoria) — não
+quebra nada.
 
 ### 3. Hospedagem: Cloudflare Pages (já automatizado)
 O próprio workflow do GitHub Actions builda o site com Hugo e publica no
@@ -253,7 +248,6 @@ cd site && hugo server
 | Regras de checagem de fatos | `FACTCHECK_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Nome e visual do site | `site/hugo.toml` e `site/static/css/style.css` |
 | Termo de busca de foto por categoria | `CATEGORY_STOCK_QUERIES` em `pipeline/generate.py` |
-| Prompt da ilustração de categoria | `CATEGORY_IMAGE_PROMPTS` em `pipeline/generate.py` (apague o arquivo em `site/static/images/categories/` pra forçar regenerar) |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.

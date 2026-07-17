@@ -6,7 +6,7 @@ categories = ["F1"]
 tags = ["Kimi Antonelli", "Wimbledon", "campeonato", "British Grand Prix"]
 sources = ["Motorsport.com"]
 source_urls = ["https://www.motorsport.com/f1/news/kimi-antonelli-reveals-roger-federers-advice-for-f1-title-fight-after-wimbledon-meeting/10839407/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=www"]
-image = "/images/categories/f1.jpg"
+image = ""
 +++
 O líder do campeonato de Fórmula 1, Kimi Antonelli, aproveitou sua presença em Wimbledon para conversar com Roger Federer, 20 vezes campeão de Grand Slam, e receber orientações do lendário tenista. O encontro ocorreu em um momento delicado da temporada do piloto italiano, que enfrentou uma corrida frustrante no Grande Prêmio da Grã-Bretanha.
 

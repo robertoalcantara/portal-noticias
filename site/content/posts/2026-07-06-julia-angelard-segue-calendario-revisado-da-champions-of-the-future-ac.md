@@ -6,7 +6,7 @@ categories = ["Kart"]
 tags = ["Champions of the Future Academy", "Julia Angelard", "Kart", "Polônia"]
 sources = ["Vroomkart"]
 source_urls = ["https://www.vroomkart.com/news/46517/an-italian-weekend-awaits-julia-angelard"]
-image = "/images/categories/kart.jpg"
+image = ""
 +++
 A pilota polonesa Julia Angelard entra em ação novamente na terceira rodada do Champions of the Future Academy, marcada para os dias 10 a 12 de julho em Viterbo, na Itália. A jovem de 14 anos chega ao evento em alta forma, depois de vencer recentemente a etapa do Campeonato Polonês de Kart no circuito de Poznań, tornando-se a primeira mulher a conquistar o título em 15 anos.
 

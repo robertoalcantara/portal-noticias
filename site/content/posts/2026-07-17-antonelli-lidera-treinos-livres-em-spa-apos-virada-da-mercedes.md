@@ -6,7 +6,7 @@ categories = ["F1"]
 tags = ["Belgian GP", "Mercedes", "Antonelli", "FP2"]
 sources = ["RACER", "Formula1.com"]
 source_urls = ["https://racer.com/2026/07/17/antonelli-praises-massive-turnaround-by-mercedes-after-topping-friday", "https://www.formula1.com/en/latest/article/antonelli-calls-for-more-from-mercedes-after-friday-running-before-belgian-grand-prix.6bTSZIz11lexXsHuDeuSCc"]
-image = "/images/categories/f1.jpg"
+image = ""
 +++
 Kimi Antonelli terminou a sexta-feira como mais rápido nos treinos livres do Grande Prêmio da Bélgica, enquanto lidera o campeonato com 25 pontos de vantagem. O piloto italiano marcou o melhor tempo na segunda sessão de práticas (FP2) após um dia de ajustes significativos em seu carro.
 

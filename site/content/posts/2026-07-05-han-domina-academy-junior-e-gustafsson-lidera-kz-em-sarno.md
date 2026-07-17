@@ -6,7 +6,7 @@ categories = ["Kart"]
 tags = ["FIA Karting European Championship", "Sarno", "Academy Junior", "KZ"]
 sources = ["Vroomkart"]
 source_urls = ["https://www.vroomkart.com/news/46506/home-hero-albanese-seizes-the-initiative-in-european-title-fight-at-sarno"]
-image = "/images/categories/kart.jpg"
+image = ""
 +++
 A segunda rodada do Campeonato Europeu de Kart FIA Mondokart.com em Sarno trouxe reviravoltas importantes nas categorias de gearbox neste sábado. No Academy Junior, John Han, de Hong Kong, realizou uma exibição impressionante ao vencer todas as três provas do dia, conquistando a liderança geral com 150 pontos, ultrapassando a vantagem sobre Zoltan Coigny para 17 pontos.
 

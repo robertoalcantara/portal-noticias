@@ -6,7 +6,7 @@ categories = ["F1"]
 tags = ["Spa-Francorchamps", "FP2", "Mercedes", "Estratégia"]
 sources = ["The Race", "The Race"]
 source_urls = ["https://www.the-race.com/formula-1/winners-losers-belgian-gp-f1-practice/", "https://www.the-race.com/formula-1/belgian-grand-prix-f1-long-run-friday-practice-analysis/"]
-image = "/images/categories/f1.jpg"
+image = ""
 +++
 Kimi Antonelli roubou os holofotes na sexta-feira do Grande Prêmio da Bélgica ao se destacar nos simulados de volta rápida e mantendo consistência nos trabalhos de longa duração em Spa-Francorchamps. O piloto da Mercedes aproveitou as correções realizadas pela equipe entre as duas sessões para ganhar confiança no carro, deixando evidente o progresso alcançado após um primeiro treino mais turbulento.
 

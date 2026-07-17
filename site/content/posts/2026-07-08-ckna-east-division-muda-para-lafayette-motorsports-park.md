@@ -6,7 +6,7 @@ categories = ["Kart"]
 tags = ["CKNA", "2026", "LaFayette", "Kart América do Norte"]
 sources = ["eKarting News"]
 source_urls = ["https://www.ekartingnews.com/2026/07/08/lafayette-motorsports-park-welcomes-ckna-east-division/?utm_source=rss&utm_medium=rss&utm_campaign=lafayette-motorsports-park-welcomes-ckna-east-division"]
-image = "/images/categories/kart.jpg"
+image = ""
 +++
 A segunda etapa do campeonato de 2026 da Cup Karts North America East Division foi realocada para o LaFayette Motorsports Park, em Lafayette, Nova York, nos dias 3 a 5 de julho.
 

@@ -6,7 +6,7 @@ categories = ["F1"]
 tags = ["fãs", "temporada", "experiência", "automotivismo"]
 sources = ["Autosport"]
 source_urls = ["https://www.autosport.com/f1/news/is-this-the-luckiest-f1-fan-on-the-planet/10839100/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=uk"]
-image = "/images/categories/f1.jpg"
+image = ""
 +++
 Um torcedor conseguiu realizar um sonho que cultivava desde a adolescência: estar presente em todas as corridas de uma temporada completa. O feito marca um momento especial na vida do apaixonado por automobilismo, que nos anos anteriores havia conseguido comparecer a apenas cinco provas diferentes.
 

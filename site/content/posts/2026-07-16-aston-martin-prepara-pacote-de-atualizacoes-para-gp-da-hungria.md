@@ -6,7 +6,7 @@ categories = ["F1"]
 tags = ["Aston Martin", "Hungria", "atualizações técnicas", "2026"]
 sources = ["Autosport"]
 source_urls = ["https://www.autosport.com/f1/news/aston-martin-flat-out-on-amr26-hungary-updates-spares-in-short-supply/10839109/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=uk"]
-image = "/images/categories/f1.jpg"
+image = ""
 +++
 A Aston Martin se dedica a um ambicioso pacote de atualizações para o Grande Prêmio da Hungria. Segundo Mike Krack, chefe de operações da equipe no circuito, o trabalho representa um grande desafio organizacional para ter ambos os carros equipados com as novas peças a tempo da corrida.
 

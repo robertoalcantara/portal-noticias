@@ -6,7 +6,7 @@ categories = ["Kart"]
 tags = ["kart 2026", "temporada", "campeonato", "meio de temporada"]
 sources = ["eKarting News"]
 source_urls = ["https://www.ekartingnews.com/2026/07/07/2026-karting-all-star-team/?utm_source=rss&utm_medium=rss&utm_campaign=2026-karting-all-star-team"]
-image = "/images/categories/kart.jpg"
+image = ""
 +++
 A temporada 2026 de kart já ultrapassou a metade do caminho, com a celebração do feriado de 4 de julho marcando um ponto de virada importante para a modalidade. Este momento do ano é crucial para o esporte, pois marca o início da reta final em que os campeonatos serão definidos em todos os níveis.
 

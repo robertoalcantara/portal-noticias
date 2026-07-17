@@ -6,7 +6,7 @@ categories = ["Kart"]
 tags = ["Rotax Max", "EUA", "2011", "Grande Nationals"]
 sources = ["eKarting News"]
 source_urls = ["https://www.ekartingnews.com/2026/07/10/flashback-friday-2011-united-states-rotax-max-challenge-grand-nationals-saturday-report/?utm_source=rss&utm_medium=rss&utm_campaign=flashback-friday-2011-united-states-rotax-max-challenge-grand-nationals-saturday-report"]
-image = "/images/categories/kart.jpg"
+image = ""
 +++
 A edição de 2011 do United States Rotax Max Challenge Grand Nationals, apresentado pela Ocala Gran Prix, chegou ao fim com a conclusão das ações do sábado. O evento marcou mais um capítulo da tradicional competição que reúne pilotos de kart nos Estados Unidos.
 

@@ -6,7 +6,7 @@ categories = ["F1"]
 tags = ["Red Bull", "RB22", "Tecnologia", "Hungaroring"]
 sources = ["Motorsport.com", "Autosport", "The Race"]
 source_urls = ["https://www.motorsport.com/f1/news/red-bull-expects-its-macarena-wing-to-return-at-next-f1-race/10839542/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=www", "https://www.autosport.com/f1/news/red-bull-expects-its-macarena-wing-to-return-at-next-f1-race/10839549/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=uk", "https://www.the-race.com/formula-1/red-bull-has-fix-for-its-parked-macarena-wing/"]
-image = "/images/categories/f1.jpg"
+image = ""
 +++
 A Red Bull planeja reintroduzir sua asa traseira móvel no RB22 durante o próximo fim de semana no Grande Prêmio da Hungria. O anúncio foi feito pelo diretor técnico Pierre Wache, que confirmou que a equipe identificou e resolveu problemas mecânicos que levaram aos acidentes de Max Verstappen nas corridas anteriores.
 

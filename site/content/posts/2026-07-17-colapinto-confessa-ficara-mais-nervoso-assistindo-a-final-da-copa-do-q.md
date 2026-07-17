@@ -6,7 +6,7 @@ categories = ["F1"]
 tags = ["Colapinto", "Argentina", "Copa do Mundo", "Bélgica"]
 sources = ["Motorsport.com"]
 source_urls = ["https://www.motorsport.com/f1/news/franco-colapinto-much-more-nervous-for-world-cup-final-than-f1-belgian-gp/10839556/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=www"]
-image = "/images/categories/f1.jpg"
+image = ""
 +++
 Franco Colapinto admitiu nesta semana que o acompanhamento da seleção argentina na final da Copa do Mundo o deixa consideravelmente mais nervoso do que pilotar seu carro de Fórmula 1 no Grande Prêmio da Bélgica. A confissão do argentino veio após a vitória emocionante de seu país nas semifinais contra a Inglaterra.
 
