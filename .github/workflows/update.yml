@@ -57,16 +57,32 @@ jobs:
         working-directory: site
         run: hugo --gc --minify
 
-      - name: Garantir que o projeto existe no Cloudflare Pages
-        # "wrangler pages deploy" não cria o projeto sozinho em ambiente não
-        # interativo (falha com "Project not found"). Este passo cria o
-        # projeto na primeira vez; nas rodadas seguintes a API só retorna um
-        # erro de "já existe", que é ignorado propositalmente (|| true).
+      - name: Diagnóstico Cloudflare (temporário)
+        # Grava as respostas reais da API num arquivo do repo, já que os logs
+        # do Actions não são acessíveis por fora. Remover depois que o
+        # deploy estiver funcionando.
+        if: always()
         run: |
-          curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"name":"portal-noticias","production_branch":"main"}' || true
+          {
+            echo "=== verify token ==="
+            curl -s -w "\nHTTP_STATUS:%{http_code}\n" "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}"
+            echo ""
+            echo "=== list pages projects ==="
+            curl -s -w "\nHTTP_STATUS:%{http_code}\n" "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}"
+            echo ""
+            echo "=== create project ==="
+            curl -s -w "\nHTTP_STATUS:%{http_code}\n" -X POST "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d '{"name":"portal-noticias","production_branch":"main"}'
+          } > pipeline/debug_deploy.log 2>&1 || true
+          git config user.name "news-bot"
+          git config user.email "news-bot@users.noreply.github.com"
+          git add pipeline/debug_deploy.log
+          git commit -m "debug: diagnóstico do deploy Cloudflare" || true
+          git push || true
 
       - name: Deploy no Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
