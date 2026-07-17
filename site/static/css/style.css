@@ -213,10 +213,17 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 }
 .post-dek { font-size: 19px; color: var(--muted); margin: 0 0 14px; }
 
-.post-media {
+.post-media { margin: 0 0 30px; }
+.post-media-frame {
   aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden;
-  background: var(--bg-alt); margin: 0 0 30px;
+  background: var(--bg-alt);
 }
+.image-credit {
+  font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+  margin: 6px 2px 0; text-align: right;
+}
+.image-credit a { color: var(--faint); text-decoration: underline; text-underline-offset: 2px; }
+.image-credit a:hover { color: var(--muted); }
 
 .prose { font-size: 18px; line-height: 1.75; }
 .prose p { margin: 0 0 1.3em; }

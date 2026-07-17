@@ -32,6 +32,7 @@ jobs:
       - name: Gerar matérias
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           MAX_PER_FEED: "4"
         run: python pipeline/generate.py

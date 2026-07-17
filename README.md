@@ -145,25 +145,32 @@ testado (ver `pipeline/generate.py`, funções `cluster_and_classify`,
 `rewrite_with_claude`, `factcheck_with_claude`) para qualquer fonte futura
 que precisar de uma regra própria.
 
-### Imagens: banco de fotos, sem ilustração de reserva
-Cada matéria tenta uma foto de banco (Pexels) por um termo genérico da
-categoria (`CATEGORY_STOCK_QUERIES` em `pipeline/generate.py`; não dá pra
-achar foto do evento específico da matéria, então a busca é por categoria
-mesmo) e escolhe uma foto aleatória entre os resultados. Precisa do secret
-`PEXELS_API_KEY` (gratuito, sem cartão — pexels.com/api).
+### Imagens: Unsplash (principal) + Pexels (reserva), sem ilustração de IA
+Cada matéria tenta, na ordem, `fetch_unsplash_image` e depois
+`fetch_pexels_image` (lista `STOCK_IMAGE_PROVIDERS` em
+`pipeline/generate.py`) por um termo genérico da categoria
+(`CATEGORY_STOCK_QUERIES`; não dá pra achar foto do evento específico da
+matéria, então a busca é por categoria mesmo). Se nenhum dos dois achar
+nada (ou nenhuma chave estiver configurada), a matéria fica **sem
+imagem** e o template usa o placeholder colorido por categoria.
 
-Se não achar (ou não tiver a chave configurada), a matéria fica **sem
-imagem** — `image` vazio — e o template usa o placeholder colorido por
-categoria que já existia (listra diagonal + nome da categoria). Não
-tentamos mais gerar uma ilustração por IA como reserva: já foi testado
-(via Pollinations.ai) e o resultado visual não ficou bom o suficiente,
-então foi removido de propósito. Se quiser retomar essa ideia depois, dá
-pra ver como estava implementado no histórico do git (commit que adiciona
-"banco de fotos Pexels + ilustração de categoria"), mas não reintroduza
-sem confirmar com o dono do projeto — foi uma decisão consciente de tirar.
+**Unsplash exige atribuição** (diferente do Pexels) — as diretrizes da API
+deles pedem: hotlink direto (nunca rehost — já é o que fazemos), crédito
+visível ao fotógrafo com link pro perfil, e um aviso à API deles de que a
+foto foi "usada" (endpoint `download_location`, chamado automaticamente
+por `trigger_unsplash_download` sempre que uma foto do Unsplash é
+escolhida). O crédito só aparece na página da matéria (`single.html`),
+abaixo da imagem principal — não nos cards pequenos da home/listas, pra
+não poluir o grid. Isso é uma escolha de design, não está 100% alinhado
+com "atribuição em toda instância" que as diretrizes do Unsplash sugerem
+como ideal, mas é o compromisso prático adotado aqui.
 
-Licença: fotos do Pexels não exigem atribuição (mas é bem-vindo creditar,
-se algum dia quiser adicionar isso).
+Secrets:
+- `UNSPLASH_ACCESS_KEY` — pexels.com/api tem NADA a ver, é
+  unsplash.com/developers → sua app → Access Key. **Não precisa da
+  Secret Key** do Unsplash — ela só serve pra fluxos de OAuth em nome de
+  usuário, que não usamos aqui (só busca pública).
+- `PEXELS_API_KEY` — reserva, tentado só se o Unsplash não achar nada.
 
 ## Estrutura
 
@@ -192,11 +199,16 @@ No repositório: **Settings → Secrets and variables → Actions → New reposi
 - Nome: `ANTHROPIC_API_KEY`
 - Valor: sua chave (crie em <https://console.anthropic.com/>)
 
-### 2b. (Opcional) Chave do Pexels para fotos de banco
-Mesmo caminho de secret, nome `PEXELS_API_KEY` — crie em
-<https://www.pexels.com/api/> (gratuito, instantâneo). Sem essa chave, as
-matérias ficam sem foto (usa o placeholder colorido por categoria) — não
-quebra nada.
+### 2b. (Opcional) Chaves de banco de fotos
+Mesmo caminho de secret:
+- `UNSPLASH_ACCESS_KEY` — principal. Crie em
+  <https://unsplash.com/developers> → New Application → Access Key
+  (gratuito). Não precisa da Secret Key.
+- `PEXELS_API_KEY` — reserva, tentado só se o Unsplash não achar nada.
+  Crie em <https://www.pexels.com/api/> (gratuito, instantâneo).
+
+Sem nenhuma das duas, as matérias ficam sem foto (usa o placeholder
+colorido por categoria) — não quebra nada.
 
 ### 3. Hospedagem: Cloudflare Pages (já automatizado)
 O próprio workflow do GitHub Actions builda o site com Hugo e publica no

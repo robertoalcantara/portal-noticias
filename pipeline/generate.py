@@ -26,9 +26,9 @@ Variáveis de ambiente:
   MAX_PER_FEED       (opcional, padrão: 4 — manchetes novas por fonte/rodada)
   MAX_SOURCE_CHARS   (opcional, padrão: 6000 — corte de CADA texto-fonte)
   DRY_RUN            (opcional, "1" para não chamar a API — usa texto de teste)
-  PEXELS_API_KEY     (opcional — sem ela, ou se não achar foto, a matéria
-                       fica sem imagem e o site usa o placeholder colorido
-                       por categoria)
+  UNSPLASH_ACCESS_KEY (opcional — banco de fotos principal)
+  PEXELS_API_KEY     (opcional — reserva, tentado se o Unsplash não achar
+                       nada ou não tiver chave configurada)
 """
 
 from __future__ import annotations
@@ -61,6 +61,7 @@ MAX_PER_FEED = int(os.environ.get("MAX_PER_FEED", "4"))
 MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
+UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
 
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
 # na etapa de classificação (não é gerada matéria).
@@ -455,14 +456,69 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
 
 
 # --------------------------------------------------------------------------
-# Imagens: banco de fotos (Pexels) com ilustração de categoria como reserva
+# Imagens: banco de fotos (Unsplash, com Pexels como reserva)
 # --------------------------------------------------------------------------
+#
+# Cada provedor devolve um dict {"url", "credit_name", "credit_url",
+# "provider"} ou None. O Unsplash exige, pelas regras da API dele:
+#   1) hotlink direto (photo.urls.*, nunca rehost) — já fazemos isso
+#   2) atribuição visível (fotógrafo + Unsplash, com link pro perfil)
+#   3) avisar o Unsplash quando a foto é "usada" (endpoint download_location)
+# O Pexels não exige nada disso, então devolve credit_name/credit_url vazios.
 
-def fetch_stock_image(categoria: str) -> str | None:
-    """Busca uma foto de banco (Pexels) genérica para a categoria.
-    Devolve None se não houver chave configurada, não achar nada, ou der erro
-    — nesses casos quem chamou deve cair para ensure_category_fallback_image.
-    """
+def trigger_unsplash_download(download_location: str) -> None:
+    """Avisa o Unsplash que a foto foi usada (exigido pelas regras da API
+    deles). Não é crítico — se falhar, só loga e segue o pipeline."""
+    if not download_location:
+        return
+    req = urllib.request.Request(
+        download_location, headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"}
+    )
+    try:
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao avisar o Unsplash sobre o uso da foto ({exc})", file=sys.stderr)
+
+
+def fetch_unsplash_image(categoria: str) -> dict | None:
+    if not UNSPLASH_ACCESS_KEY:
+        return None
+    query = CATEGORY_STOCK_QUERIES.get(categoria, "motorsport racing")
+    url = (
+        "https://api.unsplash.com/search/photos?"
+        + urllib.parse.urlencode({"query": query, "per_page": 15, "orientation": "landscape"})
+    )
+    req = urllib.request.Request(url, headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao buscar foto no Unsplash ({exc})", file=sys.stderr)
+        return None
+    results = data.get("results") or []
+    if not results:
+        return None
+    photo = random.choice(results)
+    image_url = photo.get("urls", {}).get("regular") or photo.get("urls", {}).get("full")
+    if not image_url:
+        return None
+
+    user = photo.get("user", {})
+    credit_name = user.get("name", "")
+    credit_url = user.get("links", {}).get("html", "")
+    if credit_url:
+        sep = "&" if "?" in credit_url else "?"
+        credit_url = f"{credit_url}{sep}utm_source=BRGrid&utm_medium=referral"
+
+    download_location = photo.get("links", {}).get("download_location", "")
+    trigger_unsplash_download(download_location)
+
+    return {"url": image_url, "credit_name": credit_name, "credit_url": credit_url, "provider": "Unsplash"}
+
+
+def fetch_pexels_image(categoria: str) -> dict | None:
+    """Reserva: só é tentado se o Unsplash não achar nada (ou não tiver
+    chave configurada). Pexels não exige atribuição."""
     if not PEXELS_API_KEY:
         return None
     query = CATEGORY_STOCK_QUERIES.get(categoria, "motorsport racing")
@@ -482,15 +538,26 @@ def fetch_stock_image(categoria: str) -> str | None:
         return None
     photo = random.choice(photos)
     src = photo.get("src", {})
-    return src.get("large") or src.get("medium") or src.get("original")
+    image_url = src.get("large") or src.get("medium") or src.get("original")
+    if not image_url:
+        return None
+    return {"url": image_url, "credit_name": "", "credit_url": "", "provider": "Pexels"}
 
 
-def get_article_image(categoria: str) -> str:
-    """Foto de banco quando encontra; senão fica vazio (o template usa o
-    placeholder colorido por categoria — sem ilustração gerada por IA)."""
+# Ordem de tentativa: Unsplash primeiro, Pexels como reserva.
+STOCK_IMAGE_PROVIDERS = [fetch_unsplash_image, fetch_pexels_image]
+
+
+def get_article_image(categoria: str) -> dict:
+    """Tenta cada provedor na ordem; devolve {} se nenhum achar nada (aí o
+    template usa o placeholder colorido por categoria)."""
     if DRY_RUN:
-        return ""
-    return fetch_stock_image(categoria) or ""
+        return {}
+    for provider_fn in STOCK_IMAGE_PROVIDERS:
+        result = provider_fn(categoria)
+        if result:
+            return result
+    return {}
 
 
 # --------------------------------------------------------------------------
@@ -501,10 +568,17 @@ def toml_list(items) -> str:
     return "[" + ", ".join(f'"{str(i).replace(chr(34), "")}"' for i in items) + "]"
 
 
-def write_post(article: dict, source_names: list[str], source_urls: list[str], date: datetime) -> Path:
+def write_post(
+    article: dict,
+    source_names: list[str],
+    source_urls: list[str],
+    date: datetime,
+    image_info: dict | None = None,
+) -> Path:
     slug = slugify(article["titulo"])[:70] or "materia"
     filename = f"{date:%Y-%m-%d}-{slug}.md"
     path = POSTS_DIR / filename
+    image_info = image_info or {}
 
     def esc(s: str) -> str:
         return str(s).replace('"', "'")
@@ -519,7 +593,10 @@ def write_post(article: dict, source_names: list[str], source_urls: list[str], d
             f'tags = {toml_list(article.get("tags", []))}',
             f"sources = {toml_list(source_names)}",
             f"source_urls = {toml_list(source_urls)}",
-            f'image = "{esc(article.get("image", ""))}"',
+            f'image = "{esc(image_info.get("url", ""))}"',
+            f'image_credit_name = "{esc(image_info.get("credit_name", ""))}"',
+            f'image_credit_url = "{esc(image_info.get("credit_url", ""))}"',
+            f'image_provider = "{esc(image_info.get("provider", ""))}"',
             "+++",
             "",
         ]
@@ -608,8 +685,8 @@ def main() -> int:
 
             source_names = [c["name"] for c in group_candidates]
             publish_date = max(c["date"] for c in group_candidates)
-            article["image"] = get_article_image(article.get("categoria", ALLOWED_CATEGORIES[0]))
-            write_post(article, source_names, links, publish_date)
+            image_info = get_article_image(article.get("categoria", ALLOWED_CATEGORIES[0]))
+            write_post(article, source_names, links, publish_date, image_info)
             created += 1
         except Exception as exc:  # noqa: BLE001
             print(f"    erro ao gerar/gravar: {exc}", file=sys.stderr)
