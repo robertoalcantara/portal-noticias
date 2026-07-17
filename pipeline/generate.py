@@ -80,6 +80,11 @@ Tarefas:
 4. Se o assunto do grupo NÃO se encaixa em nenhuma dessas categorias (ex.:
    MotoGP, Rally, Fórmula E, Stock Car, notícia institucional sem relação
    com pista), marque a categoria desse grupo como "DESCARTAR".
+5. Algumas manchetes vêm com uma "regra da fonte" anexada (uma instrução
+   específica daquela fonte, não do site em geral). Se uma manchete violar
+   a regra da fonte dela, NÃO a inclua em nenhum grupo — trate como se ela
+   não existisse na lista, mesmo que o fato em si seja relevante para o
+   escopo do site.
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem crases):
 {{
@@ -184,6 +189,7 @@ def entry_date_from_struct(struct_time) -> datetime:
 
 def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
     name, url = feed_cfg["name"], feed_cfg["url"]
+    extra_instructions = feed_cfg.get("extra_instructions")
     try:
         parsed = feedparser.parse(url)
     except Exception as exc:  # noqa: BLE001
@@ -208,6 +214,7 @@ def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
         out.append(
             {
                 "name": name,
+                "extra_instructions": extra_instructions,
                 "title": title,
                 "link": link,
                 "summary": re.sub(r"<[^>]+>", " ", summary or "").strip(),
@@ -222,6 +229,7 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
     name = feed_cfg["name"]
     list_url = feed_cfg["list_url"]
     link_contains = feed_cfg["link_contains"]
+    extra_instructions = feed_cfg.get("extra_instructions")
 
     try:
         downloaded = trafilatura.fetch_url(list_url)
@@ -282,6 +290,7 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
         out.append(
             {
                 "name": name,
+                "extra_instructions": extra_instructions,
                 "title": title,
                 "link": link,
                 "summary": text[:500],
@@ -334,7 +343,10 @@ def cluster_and_classify(candidates: list[dict]) -> list[dict]:
     lines = []
     for i, c in enumerate(candidates):
         summary = (c.get("summary") or "")[:220].replace("\n", " ")
-        lines.append(f"id {i} | fonte: {c['name']} | título: {c['title']} | resumo: {summary}")
+        line = f"id {i} | fonte: {c['name']} | título: {c['title']} | resumo: {summary}"
+        if c.get("extra_instructions"):
+            line += f" | regra da fonte: {c['extra_instructions']}"
+        lines.append(line)
     user_content = "\n".join(lines)
 
     client = Anthropic()
@@ -355,10 +367,10 @@ def cluster_and_classify(candidates: list[dict]) -> list[dict]:
     return data.get("grupos", [])
 
 
-def rewrite_with_claude(source_blocks: list[tuple[str, str]]) -> dict:
-    """source_blocks: lista de (nome_da_fonte, texto). Gera UMA matéria."""
+def rewrite_with_claude(source_blocks: list[tuple[str, str, str | None]]) -> dict:
+    """source_blocks: lista de (nome_da_fonte, texto, instrução_extra). Gera UMA matéria."""
     if DRY_RUN:
-        names = ", ".join(n for n, _ in source_blocks)
+        names = ", ".join(n for n, _, _ in source_blocks)
         return {
             "titulo": f"[TESTE] Matéria de {names}",
             "linha_fina": "Matéria de teste gerada em modo DRY_RUN.",
@@ -374,8 +386,11 @@ def rewrite_with_claude(source_blocks: list[tuple[str, str]]) -> dict:
 
     client = Anthropic()
     parts = []
-    for name, text in source_blocks:
-        parts.append(f"[Fonte: {name}]\n{text[:MAX_SOURCE_CHARS]}")
+    for name, text, extra_instructions in source_blocks:
+        header = f"[Fonte: {name}]"
+        if extra_instructions:
+            header += f" [Instrução especial para esta fonte: {extra_instructions}]"
+        parts.append(f"{header}\n{text[:MAX_SOURCE_CHARS]}")
     user_content = "\n\n---\n\n".join(parts)
 
     message = client.messages.create(
@@ -388,7 +403,7 @@ def rewrite_with_claude(source_blocks: list[tuple[str, str]]) -> dict:
     return parse_model_json(raw)
 
 
-def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str]]) -> dict:
+def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str | None]]) -> dict:
     """Segunda passada: revisa o rascunho contra os textos-fonte originais."""
     if DRY_RUN:
         return article
@@ -396,7 +411,12 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str]]) -
     from anthropic import Anthropic
 
     client = Anthropic()
-    parts = [f"[Fonte: {name}]\n{text[:MAX_SOURCE_CHARS]}" for name, text in source_blocks]
+    parts = []
+    for name, text, extra_instructions in source_blocks:
+        header = f"[Fonte: {name}]"
+        if extra_instructions:
+            header += f" [Instrução especial para esta fonte: {extra_instructions}]"
+        parts.append(f"{header}\n{text[:MAX_SOURCE_CHARS]}")
     sources_text = "\n\n---\n\n".join(parts)
     user_content = (
         f"TEXTOS-FONTE:\n{sources_text}\n\n"
@@ -499,7 +519,7 @@ def main() -> int:
         print(f"\n  + [{categoria}] {titles_preview}")
 
         try:
-            source_blocks: list[tuple[str, str]] = []
+            source_blocks: list[tuple[str, str, str | None]] = []
             for c in group_candidates[:4]:
                 if "_full_text" in c:
                     text = c["_full_text"]
@@ -511,7 +531,7 @@ def main() -> int:
                     if not text or len(text) < 120:
                         text = c.get("summary", "")
                 if text and len(text) >= 80:
-                    source_blocks.append((c["name"], text))
+                    source_blocks.append((c["name"], text, c.get("extra_instructions")))
 
             if not source_blocks:
                 print("    pulei: nenhum texto-fonte utilizável")

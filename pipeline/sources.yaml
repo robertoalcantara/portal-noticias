@@ -5,6 +5,12 @@
 #   type: list  -> site sem RSS: o pipeline lê a página de listagem e
 #                  extrai os links de matéria que contenham "link_contains"
 #
+# Campo opcional em qualquer fonte:
+#   extra_instructions: "..."  -> instrução extra aplicada só a essa fonte.
+#     É usada na etapa de agrupamento/classificação (para decidir o que
+#     descartar) e também passada ao modelo na hora de escrever a matéria,
+#     como contexto extra sobre esse texto-fonte específico.
+#
 # Para adicionar/remover uma fonte, edite esta lista.
 
 feeds:
@@ -48,11 +54,16 @@ feeds:
 
   # --- Kart / automobilismo brasileiro (sem RSS -> raspagem da listagem) ---
   #
-  # NOTA: kartmotor.com.br foi removido de propósito. O robots.txt do site
-  # proíbe acesso automatizado (verificado em jul/2026) — respeitamos isso
-  # em vez de contornar. Se quiser esse conteúdo, o caminho certo é entrar
-  # em contato com o Kart Motor para algum tipo de parceria/licenciamento,
-  # não raspar contra a vontade explícita deles.
+  # NOTA: o robots.txt de kartmotor.com.br proíbe acesso automatizado
+  # (verificado em jul/2026). O dono do projeto decidiu conscientemente
+  # manter essa fonte mesmo assim — registrado aqui para que fique
+  # explícito que é uma escolha deliberada, não um descuido.
+  - name: "Kart Motor"
+    type: list
+    list_url: "https://www.kartmotor.com.br/"
+    link_contains: "/noticias/"
+    extra_instructions: "Nas notícias de kart, usar apenas notícias referentes a eventos e resultados. Não utilizar notícias referentes a pilotos específicos ou matérias que falam especificamente de um piloto."
+
   - name: "CBA"
     type: list
     list_url: "https://www.cba.org.br/"

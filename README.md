@@ -64,10 +64,14 @@ o tempo todo.
   anterior). Se mexer no tratamento de erro de `cluster_and_classify`,
   preserve esse comportamento.
 - **Antes de adicionar uma fonte `type: list` (sem RSS), confira o
-  `robots.txt` do domínio.** Se ele proibir acesso automatizado, não
-  contorne — não adicione a fonte (ou peça permissão direta ao site). Já
-  aconteceu aqui: `kartmotor.com.br` foi removido por esse motivo, mesmo
-  tendo conteúdo relevante para o escopo do site.
+  `robots.txt` do domínio e avise o dono do projeto se ele proibir acesso
+  automatizado.** Isso não bloqueia a fonte automaticamente — é uma decisão
+  do dono do projeto, ciente do risco (bloqueio de IP, zona cinzenta
+  jurídica), não algo para Claude decidir sozinho silenciosamente em
+  qualquer direção. `kartmotor.com.br` é um caso real disso: o robots.txt
+  proíbe, o risco foi explicado, e o dono decidiu manter a fonte mesmo
+  assim — essa decisão está registrada mais abaixo e deve ser respeitada,
+  não revertida por conta própria.
 - **`trafilatura.bare_extraction()` às vezes devolve um objeto `Document`,
   às vezes um `dict`**, dependendo da versão/parâmetros — já causou um
   crash em produção. `collect_list_candidates` trata os dois casos
@@ -99,17 +103,44 @@ como `conclusion: "success"` na API de jobs (o campo que reflete a falha
 real é `outcome`, que a API de listagem de jobs não expõe). Não confie só
 no `conclusion` pra saber se a geração realmente funcionou — confira o log.
 
-### Fontes que já tiveram problema (histórico, resolvido)
+### Fontes que já tiveram problema (histórico)
 `Vroomkart` estava configurado com uma URL de RSS que não funciona mais
 (`vroomkart.com/rss.xml`) — o site não expõe RSS ativo, então foi trocado
 para raspagem de listagem (`type: list`, mesma técnica dos sites
-brasileiros), apontando para `vroomkart.com/news`. `Kart Motor`
-(kartmotor.com.br) foi **removido de propósito**: o robots.txt do site
-proíbe acesso automatizado, e isso é respeitado em vez de contornado — se
-esse conteúdo for importante para o portal, o caminho certo é contato
-direto com o site para parceria/licenciamento, não raspagem contra a
-vontade explícita deles. Ao investigar uma fonte "vazia", sempre confira o
-`robots.txt` do domínio antes de assumir que é só um bug técnico.
+brasileiros), apontando para `vroomkart.com/news`.
+
+`Kart Motor` (kartmotor.com.br) tem um robots.txt que proíbe acesso
+automatizado (verificado em jul/2026). **O dono do projeto está ciente
+disso e decidiu conscientemente manter a fonte mesmo assim** — não é um
+descuido nem uma omissão desta documentação, foi uma escolha explícita
+feita depois de eu apontar o risco. Não reverta essa decisão por conta
+própria; se o assunto voltar à tona, é uma conversa a ter com o dono do
+projeto, não algo para "corrigir" silenciosamente.
+
+Ao investigar uma fonte "vazia" no futuro, ainda vale conferir o
+`robots.txt` do domínio antes de assumir que é só um bug técnico — só que
+agora você sabe que a resposta pode legitimamente ser "sim, e tudo bem".
+
+### Prompt extra por fonte (`extra_instructions`)
+Qualquer fonte em `sources.yaml` pode ter um campo opcional
+`extra_instructions` com uma instrução em texto livre. Ela é injetada em
+dois pontos do pipeline:
+- Na etapa de agrupamento/classificação (`cluster_and_classify`), anexada
+  à linha daquela manchete como `regra da fonte: ...` — o modelo é
+  instruído a simplesmente OMITIR da lista de grupos qualquer manchete
+  que viole a regra da fonte dela, mesmo que o assunto geral esteja no
+  escopo do site. Essa é a defesa principal.
+- Na escrita e na revisão de fatos (`rewrite_with_claude` /
+  `factcheck_with_claude`), como uma nota `[Instrução especial para esta
+  fonte: ...]` junto do bloco de texto daquela fonte — defesa secundária,
+  caso algo passe pelo filtro de agrupamento (ex.: numa matéria agregada
+  com outras fontes que não têm essa regra).
+
+Exemplo em uso: `Kart Motor` tem
+`extra_instructions: "Nas notícias de kart, usar apenas notícias
+referentes a eventos e resultados. Não utilizar notícias referentes a
+pilotos específicos..."` — filtra matérias focadas num piloto específico
+vindas dessa fonte, mantendo só cobertura de evento/resultado.
 
 ## Estrutura
 
