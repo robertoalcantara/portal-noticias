@@ -37,20 +37,19 @@ No repositório: **Settings → Secrets and variables → Actions → New reposi
 - Nome: `ANTHROPIC_API_KEY`
 - Valor: sua chave (crie em <https://console.anthropic.com/>)
 
-### 3. Publique o site no Cloudflare Pages (grátis)
-1. Em <https://dash.cloudflare.com/> → **Workers & Pages → Create → Pages → Connect to Git**
-2. Escolha o repositório e configure o build:
-   - **Framework preset:** Hugo
-   - **Build command:** `hugo --gc --minify`
-   - **Build output directory:** `public`
-   - **Root directory:** `site`
-   - **Variável de ambiente:** `HUGO_VERSION = 0.128.0` (ou mais recente)
-3. Salve. A cada `push`, o Cloudflare reconstrói e publica sozinho.
-4. Copie a URL final (ex.: `https://seu-portal.pages.dev/`) e cole em `baseURL` no
-   `site/hugo.toml`.
+### 3. Hospedagem: Cloudflare Pages (já automatizado)
+O próprio workflow do GitHub Actions builda o site com Hugo e publica no
+Cloudflare Pages a cada rodada — não depende de conectar o repositório pela
+interface do Cloudflare. Para isso, dois secrets adicionais no repositório:
+- `CLOUDFLARE_API_TOKEN` — token customizado com permissão de conta
+  **Cloudflare Pages: Edit** (crie em dash.cloudflare.com/profile/api-tokens →
+  Create Custom Token)
+- `CLOUDFLARE_ACCOUNT_ID` — ID da conta (aparece na URL do dashboard)
 
-> Netlify funciona igual: build `hugo --gc --minify`, publish `site/public`,
-> base directory `site`, env `HUGO_VERSION`.
+Este projeto já está publicado em: **https://portal-noticias-cz7.pages.dev/**
+(o Cloudflare pode adicionar um sufixo aleatório ao nome do projeto se houver
+colisão — confira o `subdomain` retornado na criação do projeto, ou o próprio
+dashboard, e ajuste `baseURL` em `site/hugo.toml` se for diferente).
 
 ### 4. Gere as primeiras matérias
 No GitHub: aba **Actions → "Atualizar notícias" → Run workflow**.
