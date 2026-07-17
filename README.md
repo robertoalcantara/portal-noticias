@@ -67,11 +67,11 @@ o tempo todo.
   `robots.txt` do domínio e avise o dono do projeto se ele proibir acesso
   automatizado.** Isso não bloqueia a fonte automaticamente — é uma decisão
   do dono do projeto, ciente do risco (bloqueio de IP, zona cinzenta
-  jurídica), não algo para Claude decidir sozinho silenciosamente em
-  qualquer direção. `kartmotor.com.br` é um caso real disso: o robots.txt
-  proíbe, o risco foi explicado, e o dono decidiu manter a fonte mesmo
-  assim — essa decisão está registrada mais abaixo e deve ser respeitada,
-  não revertida por conta própria.
+  jurídica). Caso real: `kartmotor.com.br` tem robots.txt proibindo, o
+  dono decidiu tentar mesmo assim, mas na prática o site bloqueia a
+  requisição em nível de servidor de qualquer forma — então acabou não
+  importando quem "decidiu" o quê; a fonte foi removida por simplesmente
+  não funcionar. Ver seção de fontes com histórico de problema, mais abaixo.
 - **`trafilatura.bare_extraction()` às vezes devolve um objeto `Document`,
   às vezes um `dict`**, dependendo da versão/parâmetros — já causou um
   crash em produção. `collect_list_candidates` trata os dois casos
@@ -109,17 +109,17 @@ no `conclusion` pra saber se a geração realmente funcionou — confira o log.
 para raspagem de listagem (`type: list`, mesma técnica dos sites
 brasileiros), apontando para `vroomkart.com/news`.
 
-`Kart Motor` (kartmotor.com.br) tem um robots.txt que proíbe acesso
-automatizado (verificado em jul/2026). **O dono do projeto está ciente
-disso e decidiu conscientemente manter a fonte mesmo assim** — não é um
-descuido nem uma omissão desta documentação, foi uma escolha explícita
-feita depois de eu apontar o risco. Não reverta essa decisão por conta
-própria; se o assunto voltar à tona, é uma conversa a ter com o dono do
-projeto, não algo para "corrigir" silenciosamente.
-
-Ao investigar uma fonte "vazia" no futuro, ainda vale conferir o
-`robots.txt` do domínio antes de assumir que é só um bug técnico — só que
-agora você sabe que a resposta pode legitimamente ser "sim, e tudo bem".
+`Kart Motor` (kartmotor.com.br) foi tentado e removido. Histórico: o
+robots.txt do site proíbe acesso automatizado; o dono do projeto decidiu
+inicialmente manter a fonte mesmo assim (e a feature de instrução extra
+por fonte, abaixo, nasceu justamente para filtrar o conteúdo dela). Mas na
+prática o `fetch_url` nunca conseguiu baixar a página de listagem a partir
+do runner do GitHub Actions (nenhuma URL de kartmotor.com.br apareceu em
+`seen.json` mesmo após rodadas reais) — o site provavelmente bloqueia a
+requisição em nível de servidor (User-Agent, WAF, etc.), não só via
+robots.txt. Não vale reintroduzir sem antes resolver esse bloqueio (ex.:
+testar um User-Agent de navegador); do jeito que estava, era uma fonte
+morta que não trazia nada.
 
 ### Prompt extra por fonte (`extra_instructions`)
 Qualquer fonte em `sources.yaml` pode ter um campo opcional
@@ -136,11 +136,14 @@ dois pontos do pipeline:
   caso algo passe pelo filtro de agrupamento (ex.: numa matéria agregada
   com outras fontes que não têm essa regra).
 
-Exemplo em uso: `Kart Motor` tem
-`extra_instructions: "Nas notícias de kart, usar apenas notícias
-referentes a eventos e resultados. Não utilizar notícias referentes a
-pilotos específicos..."` — filtra matérias focadas num piloto específico
-vindas dessa fonte, mantendo só cobertura de evento/resultado.
+Exemplo (histórico, não está mais em uso já que a fonte foi removida):
+`Kart Motor` tinha `extra_instructions: "Nas notícias de kart, usar apenas
+notícias referentes a eventos e resultados. Não utilizar notícias
+referentes a pilotos específicos..."` — filtrava matérias focadas num
+piloto específico vindas daquela fonte. O mecanismo continua disponível e
+testado (ver `pipeline/generate.py`, funções `cluster_and_classify`,
+`rewrite_with_claude`, `factcheck_with_claude`) para qualquer fonte futura
+que precisar de uma regra própria.
 
 ## Estrutura
 
