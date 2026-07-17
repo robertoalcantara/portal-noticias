@@ -52,6 +52,11 @@ feeds:
     type: rss
     url: "https://ekartingnews.com/feed"
 
+  - name: "TKART"
+    type: list
+    list_url: "https://tkart.it/en/news"
+    link_contains: "/en/news/"
+
   # --- Kart / automobilismo brasileiro (sem RSS -> raspagem da listagem) ---
   - name: "CBA"
     type: list
