@@ -34,6 +34,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MAX_PER_FEED: "4"
         run: python pipeline/generate.py
 
@@ -41,7 +42,7 @@ jobs:
         run: |
           git config user.name  "news-bot"
           git config user.email "news-bot@users.noreply.github.com"
-          git add site/content/posts pipeline/seen.json
+          git add site/content/posts pipeline/seen.json site/static/images/ia
           if git diff --cached --quiet; then
             echo "Nada novo para publicar."
           else
