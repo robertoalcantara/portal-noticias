@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Hugo
+site/public/
+site/resources/_gen/
+.hugo_build.lock

@@ -1,0 +1,21 @@
+# Troque baseURL pela URL final (ex.: https://seu-portal.pages.dev/) depois de publicar.
+baseURL = "https://exemplo.pages.dev/"
+languageCode = "pt-br"
+title = "GRID"
+enableRobotsTXT = true
+paginate = 20
+timeZone = "America/Fortaleza"
+
+[params]
+  tagline = "Notícias de automobilismo"
+  description = "Cobertura de automobilismo — Fórmula 1, IndyCar, NASCAR, MotoGP, Endurance e mais."
+
+[taxonomies]
+  categoria = "categories"
+  tag = "tags"
+
+[markup.goldmark.renderer]
+  unsafe = true              # permite HTML dentro do Markdown das matérias
+
+[permalinks]
+  posts = "/:year/:month/:slug/"

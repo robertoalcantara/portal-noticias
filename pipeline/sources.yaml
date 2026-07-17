@@ -1,0 +1,19 @@
+# Fontes de notícia (feeds RSS).
+# Para adicionar/remover uma fonte, basta editar esta lista.
+# "name" aparece como crédito no rodapé de cada matéria.
+# Se um feed parar de funcionar, troque a URL aqui (veja alternativas comentadas).
+
+feeds:
+  - name: "Motorsport.com"
+    url: "https://www.motorsport.com/rss/all/news/"
+
+  - name: "Autosport"
+    url: "https://www.autosport.com/rss/all/news/"
+
+  - name: "The Race"
+    url: "https://the-race.com/feed/"
+    # alternativa por categoria: https://the-race.com/category/formula-1/feed/
+
+  - name: "RACER"
+    url: "https://racer.com/feed/"
+    # alternativa por categoria: https://racer.com/category/motorsports/feed/

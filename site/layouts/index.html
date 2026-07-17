@@ -1,0 +1,45 @@
+{{ define "main" }}
+  {{ $posts := where site.RegularPages "Type" "posts" }}
+  {{ if not $posts }}
+    <section class="empty">
+      <p class="pos">P—</p>
+      <h1>A grid está vazia.</h1>
+      <p class="empty-note">
+        Rode o workflow <code>Atualizar notícias</code> no GitHub (aba Actions →
+        Run workflow) para publicar as primeiras matérias.
+      </p>
+    </section>
+  {{ else }}
+    {{ $hero := index $posts 0 }}
+    {{ $rest := after 1 $posts }}
+
+    <section class="lead">
+      <div class="lead-rail"><span class="pos pos-lead">P1</span><span class="sector"></span></div>
+      <article class="lead-card">
+        {{ with $hero.Params.categories }}<span class="eyebrow">{{ index . 0 }}</span>{{ end }}
+        <h1 class="lead-title"><a href="{{ $hero.RelPermalink }}">{{ $hero.Title }}</a></h1>
+        {{ with $hero.Params.summary }}<p class="lead-dek">{{ . }}</p>{{ end }}
+        <p class="meta">
+          <time datetime="{{ $hero.Date.Format "2006-01-02" }}">{{ $hero.Date.Format "02 jan 2006, 15:04" }}</time>
+          {{ with $hero.Params.source_name }}<span class="dot">•</span>{{ . }}{{ end }}
+        </p>
+      </article>
+    </section>
+
+    <ol class="tower">
+      {{ range $i, $p := $rest }}
+        <li class="row">
+          <span class="pos">P{{ add $i 2 }}</span>
+          <div class="row-body">
+            <h2 class="row-title"><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></h2>
+            <p class="meta">
+              {{ with $p.Params.categories }}<span class="tag">{{ index . 0 }}</span>{{ end }}
+              <time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "02 jan, 15:04" }}</time>
+              {{ with $p.Params.source_name }}<span class="dot">•</span>{{ . }}{{ end }}
+            </p>
+          </div>
+        </li>
+      {{ end }}
+    </ol>
+  {{ end }}
+{{ end }}

@@ -1,0 +1,22 @@
+{{ define "main" }}
+  <section class="list-head">
+    <span class="eyebrow">{{ if .Data.Singular }}{{ .Data.Singular }}{{ else }}Seção{{ end }}</span>
+    <h1 class="list-title">{{ .Title }}</h1>
+  </section>
+
+  <ol class="tower">
+    {{ range $i, $p := .Pages }}
+      <li class="row">
+        <span class="pos">{{ printf "%02d" (add $i 1) }}</span>
+        <div class="row-body">
+          <h2 class="row-title"><a href="{{ $p.RelPermalink }}">{{ $p.Title }}</a></h2>
+          <p class="meta">
+            {{ with $p.Params.categories }}<span class="tag">{{ index . 0 }}</span>{{ end }}
+            <time datetime="{{ $p.Date.Format "2006-01-02" }}">{{ $p.Date.Format "02 jan, 15:04" }}</time>
+            {{ with $p.Params.source_name }}<span class="dot">•</span>{{ . }}{{ end }}
+          </p>
+        </div>
+      </li>
+    {{ end }}
+  </ol>
+{{ end }}

@@ -1,0 +1,36 @@
+{{ define "main" }}
+  <article class="post">
+    <div class="post-head">
+      {{ with .Params.categories }}<span class="eyebrow">{{ index . 0 }}</span>{{ end }}
+      <h1 class="post-title">{{ .Title }}</h1>
+      {{ with .Params.summary }}<p class="post-dek">{{ . }}</p>{{ end }}
+      <p class="meta">
+        <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "02 de January de 2006, 15:04" }}</time>
+        {{ with .Params.source_name }}<span class="dot">•</span>Fonte: {{ . }}{{ end }}
+      </p>
+    </div>
+
+    <div class="prose">
+      {{ .Content }}
+    </div>
+
+    {{ if .Params.source_url }}
+      <aside class="attribution">
+        <span class="sector"></span>
+        <div>
+          <strong>Matéria baseada em publicação de {{ .Params.source_name }}.</strong>
+          <a href="{{ .Params.source_url }}" rel="nofollow noopener" target="_blank">Ler o original →</a>
+          <p class="attribution-note">Texto reescrito e resumido de forma automatizada.</p>
+        </div>
+      </aside>
+    {{ end }}
+
+    {{ with .Params.tags }}
+      <div class="tags">
+        {{ range . }}<span class="tag">{{ . }}</span>{{ end }}
+      </div>
+    {{ end }}
+
+    <p class="back"><a href="{{ "/" | relURL }}">← Voltar à grid</a></p>
+  </article>
+{{ end }}
