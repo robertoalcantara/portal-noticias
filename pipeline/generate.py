@@ -29,10 +29,17 @@ Variáveis de ambiente:
   UNSPLASH_ACCESS_KEY (opcional — banco de fotos principal)
   PEXELS_API_KEY     (opcional — reserva, tentado se o Unsplash não achar
                        nada ou não tiver chave configurada)
+  GEMINI_API_KEY      (opcional — se configurada, tenta gerar uma variação por
+                       IA da imagem que já existe na matéria-fonte, ANTES de
+                       tentar o banco de fotos genérico)
+  GEMINI_IMAGE_MODEL  (opcional, padrão: gemini-2.5-flash-image — modelo de
+                       geração/edição de imagem "Nano Banana" do Gemini)
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import random
@@ -62,6 +69,8 @@ MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
 PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
 
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
 # na etapa de classificação (não é gerada matéria).
@@ -319,6 +328,7 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
                 "summary": text[:500],
                 "date": date,
                 "_full_text": text,
+                "_source_html": article_html,
             }
         )
     return out
@@ -375,7 +385,7 @@ def cluster_and_classify(candidates: list[dict]) -> list[dict]:
     client = Anthropic()
     message = client.messages.create(
         model=CLUSTER_MODEL,
-        max_tokens=2000,
+        max_tokens=4096,
         system=CLUSTER_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
@@ -456,7 +466,170 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
 
 
 # --------------------------------------------------------------------------
-# Imagens: banco de fotos (Unsplash, com Pexels como reserva)
+# Imagens: variação por IA (Gemini "Nano Banana") a partir da imagem-fonte
+# --------------------------------------------------------------------------
+#
+# Antes de cair no banco de fotos genérico (abaixo), tentamos usar a própria
+# imagem que ilustra a matéria no site de origem: baixamos essa imagem e
+# pedimos a um modelo de geração/edição de imagem (Gemini, apelidado de
+# "Nano Banana") para criar uma VARIAÇÃO dela — muda um pouco o ângulo das
+# pessoas e dos carros visíveis, mas preserva o contexto geral da cena. A
+# ideia é ter uma imagem com relação real ao fato noticiado (diferente do
+# banco de fotos, que é sempre genérico por categoria) sem republicar a
+# foto original de terceiros sem licença.
+#
+# Falha em qualquer etapa (matéria-fonte sem imagem, GEMINI_API_KEY não
+# configurada, erro de rede/API) é silenciosa: a função devolve None e o
+# chamador cai para o banco de fotos (get_article_image), exatamente como o
+# Pexels é a reserva do Unsplash logo abaixo.
+
+GENERATED_IMAGES_DIR = ROOT / "site" / "static" / "images" / "ia"
+GENERATED_IMAGES_URL_PREFIX = "/images/ia"
+
+# Prompt fixo pedido pelo dono do projeto para a variação de imagem.
+IMAGE_VARIATION_PROMPT = (
+    "Crie uma variação dessa imagem, mudando um pouco o ângulo das pessoas "
+    "e dos carros visíveis, de forma pronunciada mas que não altere o "
+    "contexto geral."
+)
+
+
+def extract_source_image_url(html: str, page_url: str) -> str | None:
+    """Extrai a imagem principal (og:image/twitter:image) da página da
+    matéria-fonte usando os metadados que o trafilatura já sabe ler."""
+    if not html:
+        return None
+    try:
+        meta = trafilatura.extract_metadata(html, default_url=page_url)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao ler metadata da página-fonte ({exc})", file=sys.stderr)
+        return None
+    if not meta:
+        return None
+    # extract_metadata() normalmente devolve um Document, mas tratamos dict
+    # também pelo mesmo motivo do bare_extraction() acima: já causou crash
+    # em produção assumir um formato só.
+    image = meta.get("image") if isinstance(meta, dict) else getattr(meta, "image", None)
+    if not image:
+        return None
+    return urljoin(page_url, image)
+
+
+def download_image_bytes(url: str, max_bytes: int = 8_000_000) -> tuple[bytes, str] | None:
+    """Baixa uma imagem e devolve (bytes, mime_type). None se falhar, vier
+    vazia/pequena demais (provável placeholder) ou grande demais."""
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "Mozilla/5.0 (compatible; BRGridBot/1.0)"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            content_type = (resp.headers.get("Content-Type") or "image/jpeg").split(";")[0].strip()
+            data = resp.read(max_bytes + 1)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao baixar imagem da fonte ({exc})", file=sys.stderr)
+        return None
+    if not data or len(data) < 500 or len(data) > max_bytes:
+        return None
+    if not content_type.startswith("image/"):
+        return None
+    return data, content_type
+
+
+def generate_image_variation(image_bytes: bytes, mime_type: str) -> tuple[bytes, str] | None:
+    """Chama a API do Gemini (Nano Banana) para gerar uma variação da
+    imagem recebida. Devolve (bytes_da_imagem_gerada, mime_type) ou None."""
+    if not GEMINI_API_KEY:
+        return None
+    url = (
+        "https://generativelanguage.googleapis.com/v1/models/"
+        f"{GEMINI_IMAGE_MODEL}:generateContent"
+    )
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": IMAGE_VARIATION_PROMPT},
+                    {
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": base64.b64encode(image_bytes).decode("ascii"),
+                        }
+                    },
+                ]
+            }
+        ],
+        "generationConfig": {"responseModalities": ["IMAGE"]},
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao chamar a API de imagem do Gemini ({exc})", file=sys.stderr)
+        return None
+    try:
+        for candidate in data.get("candidates", []):
+            for part in candidate.get("content", {}).get("parts", []):
+                inline = part.get("inlineData") or part.get("inline_data")
+                if inline and inline.get("data"):
+                    out_mime = inline.get("mimeType") or inline.get("mime_type") or "image/png"
+                    return base64.b64decode(inline["data"]), out_mime
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: resposta inesperada da API de imagem do Gemini ({exc})", file=sys.stderr)
+    return None
+
+
+def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
+    """Tenta, na ordem das fontes do grupo, gerar uma variação por IA da
+    imagem já usada na matéria-fonte. Devolve um dict no mesmo formato de
+    get_article_image() ({"url", "credit_name", "credit_url", "provider"})
+    ou None se nenhuma fonte do grupo render uma imagem utilizável — aí o
+    chamador cai para o banco de fotos genérico."""
+    if DRY_RUN or not GEMINI_API_KEY:
+        return None
+
+    for c in group_candidates:
+        link = c.get("link")
+        if not link:
+            continue
+        html = c.get("_source_html")
+        if html is None:
+            html = trafilatura.fetch_url(link)
+        if not html:
+            continue
+        image_url = extract_source_image_url(html, link)
+        if not image_url:
+            continue
+        downloaded = download_image_bytes(image_url)
+        if not downloaded:
+            continue
+        image_bytes, mime_type = downloaded
+        variation = generate_image_variation(image_bytes, mime_type)
+        if not variation:
+            continue
+        variation_bytes, out_mime = variation
+        ext = "png" if "png" in out_mime else "jpg"
+        digest = hashlib.sha1(link.encode("utf-8")).hexdigest()[:16]
+        filename = f"{digest}.{ext}"
+        GENERATED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+        (GENERATED_IMAGES_DIR / filename).write_bytes(variation_bytes)
+        return {
+            "url": f"{GENERATED_IMAGES_URL_PREFIX}/{filename}",
+            "credit_name": "",
+            "credit_url": "",
+            "provider": "IA (variação da imagem da fonte)",
+        }
+    return None
+
+
+# --------------------------------------------------------------------------
+# Imagens: banco de fotos (Unsplash, com Pexels como reserva) — usado só se
+# a variação por IA acima não gerar nada
 # --------------------------------------------------------------------------
 #
 # Cada provedor devolve um dict {"url", "credit_name", "credit_url",
@@ -663,6 +836,7 @@ def main() -> int:
                     text = c["_full_text"]
                 else:
                     downloaded = trafilatura.fetch_url(c["link"])
+                    c["_source_html"] = downloaded
                     text = None
                     if downloaded:
                         text = trafilatura.extract(downloaded, include_comments=False)
@@ -685,7 +859,9 @@ def main() -> int:
 
             source_names = [c["name"] for c in group_candidates]
             publish_date = max(c["date"] for c in group_candidates)
-            image_info = get_article_image(article.get("categoria", ALLOWED_CATEGORIES[0]))
+            image_info = get_ai_variation_image(group_candidates)
+            if not image_info:
+                image_info = get_article_image(article.get("categoria", ALLOWED_CATEGORIES[0]))
             write_post(article, source_names, links, publish_date, image_info)
             created += 1
         except Exception as exc:  # noqa: BLE001

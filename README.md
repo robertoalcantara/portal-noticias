@@ -145,14 +145,28 @@ testado (ver `pipeline/generate.py`, funções `cluster_and_classify`,
 `rewrite_with_claude`, `factcheck_with_claude`) para qualquer fonte futura
 que precisar de uma regra própria.
 
-### Imagens: Unsplash (principal) + Pexels (reserva), sem ilustração de IA
+### Imagens: variação por IA da imagem-fonte (principal) → Unsplash → Pexels (reservas)
+Antes de qualquer banco de fotos, `get_ai_variation_image` (em
+`pipeline/generate.py`) tenta usar a própria imagem da matéria no site de
+origem: baixa essa imagem e pede ao Gemini (modelo "Nano Banana",
+`GEMINI_IMAGE_MODEL`) para gerar uma **variação** dela — muda um pouco o
+ângulo das pessoas e dos carros visíveis, sem alterar o contexto geral
+(prompt fixo em `IMAGE_VARIATION_PROMPT`). A imagem gerada é salva em
+`site/static/images/ia/` e commitada pelo workflow junto com as matérias.
+
+Isso só é tentado se `GEMINI_API_KEY` estiver configurada e a matéria-fonte
+tiver uma imagem (`og:image`) que o `trafilatura` consiga extrair. Qualquer
+falha nessa etapa (sem imagem na fonte, sem chave, erro de rede/API) é
+silenciosa e cai para o banco de fotos genérico, exatamente como já
+funcionava antes:
+
 Cada matéria tenta, na ordem, `fetch_unsplash_image` e depois
 `fetch_pexels_image` (lista `STOCK_IMAGE_PROVIDERS` em
 `pipeline/generate.py`) por um termo genérico da categoria
 (`CATEGORY_STOCK_QUERIES`; não dá pra achar foto do evento específico da
-matéria, então a busca é por categoria mesmo). Se nenhum dos dois achar
-nada (ou nenhuma chave estiver configurada), a matéria fica **sem
-imagem** e o template usa o placeholder colorido por categoria.
+matéria, então a busca é por categoria mesmo). Se nada disso achar nada
+(ou nenhuma chave estiver configurada), a matéria fica **sem imagem** e o
+template usa o placeholder colorido por categoria.
 
 **Unsplash exige atribuição** (diferente do Pexels) — as diretrizes da API
 deles pedem: hotlink direto (nunca rehost — já é o que fazemos), crédito
@@ -163,14 +177,20 @@ escolhida). O crédito só aparece na página da matéria (`single.html`),
 abaixo da imagem principal — não nos cards pequenos da home/listas, pra
 não poluir o grid. Isso é uma escolha de design, não está 100% alinhado
 com "atribuição em toda instância" que as diretrizes do Unsplash sugerem
-como ideal, mas é o compromisso prático adotado aqui.
+como ideal, mas é o compromisso prático adotado aqui. A imagem gerada por
+IA não tem crédito (não é uma foto de banco, é uma variação derivada da
+imagem da própria matéria-fonte).
 
 Secrets:
+- `GEMINI_API_KEY` — opcional, mas é o que liga a variação por IA. Crie em
+  <https://aistudio.google.com/apikey> (Google AI Studio, gratuito para
+  uso leve). Sem essa chave, o pipeline pula direto para Unsplash/Pexels.
 - `UNSPLASH_ACCESS_KEY` — pexels.com/api tem NADA a ver, é
   unsplash.com/developers → sua app → Access Key. **Não precisa da
   Secret Key** do Unsplash — ela só serve pra fluxos de OAuth em nome de
   usuário, que não usamos aqui (só busca pública).
-- `PEXELS_API_KEY` — reserva, tentado só se o Unsplash não achar nada.
+- `PEXELS_API_KEY` — reserva, tentado só se a variação por IA e o Unsplash
+  não acharem nada.
 
 ## Estrutura
 
@@ -199,7 +219,15 @@ No repositório: **Settings → Secrets and variables → Actions → New reposi
 - Nome: `ANTHROPIC_API_KEY`
 - Valor: sua chave (crie em <https://console.anthropic.com/>)
 
-### 2b. (Opcional) Chaves de banco de fotos
+### 2b. (Opcional) Variação de imagem por IA (recomendado)
+Mesmo caminho de secret:
+- `GEMINI_API_KEY` — crie em <https://aistudio.google.com/apikey>
+  (Google AI Studio, gratuito para uso leve). Liga a geração de variação
+  da imagem da matéria-fonte via Gemini "Nano Banana" (ver seção
+  "Imagens" acima). Sem essa chave, o pipeline vai direto para o banco de
+  fotos abaixo.
+
+### 2c. (Opcional) Chaves de banco de fotos (reserva)
 Mesmo caminho de secret:
 - `UNSPLASH_ACCESS_KEY` — principal. Crie em
   <https://unsplash.com/developers> → New Application → Access Key
@@ -207,7 +235,7 @@ Mesmo caminho de secret:
 - `PEXELS_API_KEY` — reserva, tentado só se o Unsplash não achar nada.
   Crie em <https://www.pexels.com/api/> (gratuito, instantâneo).
 
-Sem nenhuma das duas, as matérias ficam sem foto (usa o placeholder
+Sem nenhuma dessas chaves, as matérias ficam sem foto (usa o placeholder
 colorido por categoria) — não quebra nada.
 
 ### 3. Hospedagem: Cloudflare Pages (já automatizado)
@@ -260,6 +288,8 @@ cd site && hugo server
 | Regras de checagem de fatos | `FACTCHECK_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Nome e visual do site | `site/hugo.toml` e `site/static/css/style.css` |
 | Termo de busca de foto por categoria | `CATEGORY_STOCK_QUERIES` em `pipeline/generate.py` |
+| Prompt da variação de imagem por IA | `IMAGE_VARIATION_PROMPT` em `pipeline/generate.py` |
+| Modelo de geração/edição de imagem (IA) | env `GEMINI_IMAGE_MODEL` (padrão: `gemini-2.5-flash-image`) |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.
@@ -269,6 +299,10 @@ cd site && hugo server
   por matéria. Ative o **Batch API** (50% mais barato) se quiser reduzir ainda
   mais — notícia não precisa ser instantânea. Confira o preço atual em
   <https://docs.claude.com>.
+- **API do Gemini (variação de imagem)**: uma chamada de geração/edição de
+  imagem por matéria, só quando a matéria-fonte tem imagem e `GEMINI_API_KEY`
+  está configurada. Confira o preço atual do modelo (`GEMINI_IMAGE_MODEL`) em
+  <https://ai.google.dev/gemini-api/docs/pricing>.
 
 ## Importante — direitos autorais
 Fato não tem direito autoral, mas a **expressão** (texto, estrutura e principalmente
