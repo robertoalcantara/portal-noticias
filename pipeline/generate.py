@@ -42,7 +42,7 @@ import os
 import re
 import sys
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -212,28 +212,22 @@ def save_seen(seen: set[str]) -> None:
 # --------------------------------------------------------------------------
 
 # Se a data que vem da fonte (RSS ou extraída por trafilatura da página)
-# for implausivelmente antiga, NÃO usamos ela na matéria. Caso real: uma
-# página "evergreen" de catálogo de produto (ex.: TKART) apareceu pela
-# primeira vez na listagem — link nunca visto antes, então o pipeline trata
-# como notícia nova — mas o conteúdo em si tinha data de 2022/2023. O post
-# nasceu com esse ano no frontmatter e na URL, foi parar lá no fim da lista
-# cronológica do site, "enterrado" atrás de anos de posts — mesmo sendo,
-# pra efeitos do BRGrid, uma matéria nova publicada hoje. Datas futuras
-# (relógio da fonte errado, fuso, etc.) também caem aqui: Hugo não builda
-# conteúdo com data no futuro por padrão.
+# for mais velha que MAX_SOURCE_DATE_AGE_DAYS, o candidato é DESCARTADO —
+# não vira matéria. Caso real: uma página "evergreen" de catálogo de
+# produto (ex.: TKART) apareceu pela primeira vez na listagem — link nunca
+# visto antes, então o pipeline trataria como notícia nova — mas o
+# conteúdo em si tinha data de 2022/2023. Usar a data original faria o
+# post nascer "enterrado" no fim da lista cronológica do site; usar a
+# data de hoje seria publicar como notícia algo que não é mais notícia.
+# A regra é simples: usamos SEMPRE a data original da fonte, e se ela for
+# velha demais, simplesmente não publicamos.
 MAX_SOURCE_DATE_AGE_DAYS = 30
 
 
-def clamp_source_date(date: datetime | None) -> datetime:
-    """Devolve `date` se parecer uma publicação recente de verdade; senão
-    devolve agora (o momento em que o BRGrid descobriu/está publicando a
-    matéria) — ver comentário acima sobre matérias 'evergreen'."""
-    now = datetime.now(timezone.utc)
-    if date is None:
-        return now
-    if date > now or (now - date).days > MAX_SOURCE_DATE_AGE_DAYS:
-        return now
-    return date
+def is_source_date_stale(date: datetime) -> bool:
+    """True se `date` (data original extraída da fonte) for velha demais
+    pra ainda contar como notícia — ver comentário acima."""
+    return date < datetime.now(timezone.utc) - timedelta(days=MAX_SOURCE_DATE_AGE_DAYS)
 
 
 def entry_date_from_struct(struct_time) -> datetime:
@@ -263,11 +257,13 @@ def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
             continue
         title = entry.get("title", "Sem título")
         summary = entry.get("summary", "") or entry.get("description", "")
-        date = clamp_source_date(
-            entry_date_from_struct(
-                entry.get("published_parsed") or entry.get("updated_parsed")
-            )
+        date = entry_date_from_struct(
+            entry.get("published_parsed") or entry.get("updated_parsed")
         )
+        if is_source_date_stale(date):
+            print(f"    descartado (>{MAX_SOURCE_DATE_AGE_DAYS}d, {date.date()}): {title[:70]}")
+            seen.add(link)
+            continue
         out.append(
             {
                 "name": name,
@@ -344,7 +340,10 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
                 date = datetime.fromisoformat(str(raw_date)).replace(tzinfo=timezone.utc)
             except Exception:  # noqa: BLE001
                 pass
-        date = clamp_source_date(date)
+        if is_source_date_stale(date):
+            print(f"    descartado (>{MAX_SOURCE_DATE_AGE_DAYS}d, {date.date()}): {title[:70]}")
+            seen.add(link)
+            continue
         out.append(
             {
                 "name": name,
