@@ -31,6 +31,14 @@ Variáveis de ambiente:
                        falhar, a matéria fica sem imagem)
   GEMINI_IMAGE_MODEL  (opcional, padrão: gemini-2.5-flash-image — modelo de
                        geração/edição de imagem "Nano Banana" do Gemini)
+  DEEPSEEK_API_KEY    (opcional — se definida, o DeepSeek é usado como
+                       modelo PRIORITÁRIO nas 3 chamadas de texto (agrupar,
+                       escrever, checar fatos). Se a chamada ao DeepSeek
+                       falhar por qualquer motivo — rede, quota, resposta
+                       vazia/inválida — o pipeline cai automaticamente pro
+                       Claude/Anthropic na mesma etapa. Sem essa variável,
+                       usa só Claude/Anthropic, como antes)
+  DEEPSEEK_MODEL      (opcional, padrão: deepseek-chat)
 """
 
 from __future__ import annotations
@@ -64,6 +72,9 @@ MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
 # na etapa de classificação (não é gerada matéria).
@@ -403,15 +414,78 @@ def is_insufficient_content(article: dict) -> bool:
 
 
 # --------------------------------------------------------------------------
-# Chamadas ao Claude
+# Chamadas ao LLM: DeepSeek (prioritário, se configurado) com fallback
+# automático pro Claude/Anthropic
 # --------------------------------------------------------------------------
+#
+# call_llm() é o único ponto por onde as 3 etapas de texto (agrupar,
+# escrever, checar fatos) falam com um modelo de linguagem. Se
+# DEEPSEEK_API_KEY estiver definida, tenta o DeepSeek primeiro; qualquer
+# falha (rede, HTTP, quota, JSON malformado, resposta vazia) cai pro Claude
+# na mesma chamada — o restante do pipeline nem fica sabendo qual dos dois
+# respondeu.
+
+def _call_deepseek(system: str, user_content: str, max_tokens: int) -> str:
+    body = json.dumps(
+        {
+            "model": DEEPSEEK_MODEL,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_content},
+            ],
+            "max_tokens": max_tokens,
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"{DEEPSEEK_BASE_URL}/chat/completions",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=180) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:  # noqa: BLE001
+        detail = exc.read().decode("utf-8", errors="replace")[:300]
+        raise RuntimeError(f"HTTP {exc.code}: {detail}") from exc
+    choice = payload["choices"][0]
+    content = (choice.get("message") or {}).get("content")
+    if not content or not content.strip():
+        raise RuntimeError(f"resposta vazia (finish_reason={choice.get('finish_reason')})")
+    return content
+
+
+def _call_anthropic(system: str, user_content: str, max_tokens: int, model: str) -> str:
+    from anthropic import Anthropic
+
+    client = Anthropic()
+    message = client.messages.create(
+        model=model,
+        max_tokens=max_tokens,
+        system=system,
+        messages=[{"role": "user", "content": user_content}],
+    )
+    return "".join(block.text for block in message.content if block.type == "text")
+
+
+def call_llm(system: str, user_content: str, max_tokens: int, anthropic_model: str) -> str:
+    """Tenta o DeepSeek primeiro (se configurado); em qualquer falha, cai
+    pro Claude/Anthropic com `anthropic_model`."""
+    if DEEPSEEK_API_KEY:
+        try:
+            return _call_deepseek(system, user_content, max_tokens)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    aviso: DeepSeek falhou ({exc}) — usando Claude/Anthropic", file=sys.stderr)
+    return _call_anthropic(system, user_content, max_tokens, anthropic_model)
+
 
 def cluster_and_classify(candidates: list[dict]) -> list[dict]:
     """Agrupa candidatos pelo mesmo fato e classifica cada grupo."""
     if DRY_RUN:
         return [{"ids": [i], "categoria": ALLOWED_CATEGORIES[0]} for i in range(len(candidates))]
-
-    from anthropic import Anthropic
 
     lines = []
     for i, c in enumerate(candidates):
@@ -422,20 +496,12 @@ def cluster_and_classify(candidates: list[dict]) -> list[dict]:
         lines.append(line)
     user_content = "\n".join(lines)
 
-    client = Anthropic()
-    message = client.messages.create(
-        model=CLUSTER_MODEL,
-        max_tokens=4096,
-        system=CLUSTER_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
-    )
-    raw = "".join(block.text for block in message.content if block.type == "text")
+    raw = call_llm(CLUSTER_SYSTEM_PROMPT, user_content, 4096, CLUSTER_MODEL)
     try:
         data = parse_model_json(raw)
     except Exception as exc:  # noqa: BLE001
         print(f"    aviso: falha ao parsear resposta do agrupamento: {exc}", file=sys.stderr)
         print(f"    resposta bruta ({len(raw)} chars): {raw[:500]!r}", file=sys.stderr)
-        print(f"    stop_reason: {getattr(message, 'stop_reason', '?')}", file=sys.stderr)
         raise
     return data.get("grupos", [])
 
@@ -455,9 +521,6 @@ def rewrite_with_claude(source_blocks: list[tuple[str, str, str | None]]) -> dic
             ),
         }
 
-    from anthropic import Anthropic
-
-    client = Anthropic()
     parts = []
     for name, text, extra_instructions in source_blocks:
         header = f"[Fonte: {name}]"
@@ -466,13 +529,7 @@ def rewrite_with_claude(source_blocks: list[tuple[str, str, str | None]]) -> dic
         parts.append(f"{header}\n{text[:MAX_SOURCE_CHARS]}")
     user_content = "\n\n---\n\n".join(parts)
 
-    message = client.messages.create(
-        model=MODEL,
-        max_tokens=4096,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
-    )
-    raw = "".join(block.text for block in message.content if block.type == "text")
+    raw = call_llm(SYSTEM_PROMPT, user_content, 4096, MODEL)
     return parse_model_json(raw)
 
 
@@ -481,9 +538,6 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
     if DRY_RUN:
         return article
 
-    from anthropic import Anthropic
-
-    client = Anthropic()
     parts = []
     for name, text, extra_instructions in source_blocks:
         header = f"[Fonte: {name}]"
@@ -495,13 +549,7 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
         f"TEXTOS-FONTE:\n{sources_text}\n\n"
         f"RASCUNHO (JSON):\n{json.dumps(article, ensure_ascii=False)}"
     )
-    message = client.messages.create(
-        model=FACTCHECK_MODEL,
-        max_tokens=4096,
-        system=FACTCHECK_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
-    )
-    raw = "".join(block.text for block in message.content if block.type == "text")
+    raw = call_llm(FACTCHECK_SYSTEM_PROMPT, user_content, 4096, FACTCHECK_MODEL)
     return parse_model_json(raw)
 
 
