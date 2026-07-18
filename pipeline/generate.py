@@ -69,6 +69,14 @@ GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-imag
 # na etapa de classificação (não é gerada matéria).
 ALLOWED_CATEGORIES = ["Kart", "F1", "F2", "F3", "F4", "GT3", "WEC", "Indy", "NASCAR"]
 
+# Sentinela que rewrite_with_claude devolve em "titulo" quando os
+# textos-fonte não têm fato suficiente para uma matéria (ex.: página só com
+# navegação/menu do site, sem conteúdo jornalístico). Detectado em main()
+# para NUNCA virar post — antes disso o pipeline publicava uma "matéria"
+# só com uma nota dizendo que o conteúdo era insuficiente, o que não devia
+# acontecer.
+INSUFFICIENT_CONTENT_TITLE = "CONTEUDO_INSUFICIENTE"
+
 CLUSTER_SYSTEM_PROMPT = f"""\
 Você organiza a pauta de um portal de notícias de automobilismo chamado BRGrid.
 Vai receber uma lista de manchetes (com id, fonte e resumo) vindas de vários
@@ -119,14 +127,19 @@ Regras obrigatórias:
   números, aspas, nomes ou nacionalidades.
 - Se houver mais de uma fonte, combine os fatos em uma narrativa única e
   coerente — não escreva "segundo a fonte A... segundo a fonte B...".
-- Se o material for insuficiente, escreva uma nota curta em vez de
-  preencher com suposições.
+- Se o material for insuficiente para uma matéria de verdade (ex.: os
+  textos-fonte são só navegação/menu do site, cookie banner, ou não têm
+  nenhum fato jornalístico de automobilismo), NÃO escreva uma nota
+  explicando que faltou conteúdo — isso não deve virar matéria publicada.
+  Em vez disso, responda com "titulo": "{INSUFFICIENT_CONTENT_TITLE}" e os
+  demais campos vazios ("linha_fina": "", "tags": [], "corpo_markdown": "").
+  O sistema descarta essa resposta automaticamente.
 - Tom jornalístico, direto, sem sensacionalismo.
 - A(s) fonte(s) será(ão) creditada(s) pelo sistema; você não precisa citá-las.
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem crases), no formato:
 {{
-  "titulo": "título curto e informativo",
+  "titulo": "título curto e informativo (ou \"{INSUFFICIENT_CONTENT_TITLE}\" se o material for insuficiente, ver regra acima)",
   "linha_fina": "uma frase de resumo (o 'dek')",
   "categoria": "uma de: {", ".join(ALLOWED_CATEGORIES)}",
   "tags": ["até 4 tags curtas"],
@@ -468,7 +481,7 @@ GENERATED_IMAGES_URL_PREFIX = "/images/ia"
 IMAGE_VARIATION_PROMPT = (
     "Crie uma variação dessa imagem, mudando um pouco o ângulo das pessoas "
     "e dos carros visíveis, de forma pronunciada mas que não altere o "
-    "contexto geral."
+    "contexto geral. Também evitar trocar as cores."
 )
 
 
@@ -736,6 +749,19 @@ def main() -> int:
                 continue
 
             article = rewrite_with_claude(source_blocks)
+
+            titulo_normalizado = (article.get("titulo") or "").strip().casefold()
+            if (
+                titulo_normalizado == INSUFFICIENT_CONTENT_TITLE.casefold()
+                or "insuficiente" in titulo_normalizado
+            ):
+                # O modelo sinalizou (ou deu a entender, na checagem de
+                # reforço acima) que os textos-fonte não davam pra uma
+                # matéria de verdade. Não publica — trata como descarte,
+                # igual a uma manchete fora do escopo.
+                print(f"    descartado (conteúdo insuficiente): {titles_preview[:70]}")
+                continue
+
             try:
                 article = factcheck_with_claude(article, source_blocks)
             except Exception as exc:  # noqa: BLE001
