@@ -21,7 +21,7 @@ Rode localmente com `python pipeline/generate.py` ou deixe o GitHub Actions roda
 Variáveis de ambiente:
   ANTHROPIC_API_KEY  (obrigatória, exceto em DRY_RUN)
   MODEL              (opcional, padrão: claude-haiku-4-5-20251001 — geração)
-  FACTCHECK_MODEL    (opcional, padrão: claude-sonnet-5 — revisão/checagem)
+  FACTCHECK_MODEL    (opcional, padrão: claude-haiku-4-5-20251001 — revisão/checagem)
   CLUSTER_MODEL      (opcional, padrão: claude-haiku-4-5-20251001 — agrupar/classificar)
   MAX_PER_FEED       (opcional, padrão: 4 — manchetes novas por fonte/rodada)
   MAX_SOURCE_CHARS   (opcional, padrão: 6000 — corte de CADA texto-fonte)
@@ -57,7 +57,7 @@ SEEN_FILE = ROOT / "pipeline" / "seen.json"
 POSTS_DIR = ROOT / "site" / "content" / "posts"
 
 MODEL = os.environ.get("MODEL", "claude-haiku-4-5-20251001")
-FACTCHECK_MODEL = os.environ.get("FACTCHECK_MODEL", "claude-sonnet-5")
+FACTCHECK_MODEL = os.environ.get("FACTCHECK_MODEL", "claude-haiku-4-5-20251001")
 CLUSTER_MODEL = os.environ.get("CLUSTER_MODEL", "claude-haiku-4-5-20251001")
 MAX_PER_FEED = int(os.environ.get("MAX_PER_FEED", "4"))
 MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
