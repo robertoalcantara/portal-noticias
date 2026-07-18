@@ -59,6 +59,17 @@ import trafilatura
 import yaml
 from slugify import slugify
 
+# Sem isso, quando a saída não é um terminal (ex.: workflow do GitHub
+# Actions, ou saída redirecionada/pipe), o Python bufferiza stdout em
+# blocos grandes mas deixa stderr sem buffer — na prática, os
+# print(..., file=sys.stderr) (avisos, erros) aparecem no log ANTES das
+# mensagens de stdout que na verdade rodaram primeiro, o que confunde
+# bastante na hora de debugar (ex.: um aviso parecendo ter acontecido
+# antes da coleta de manchetes começar). Força stdout a também ser
+# line-buffered, igual ao stderr, pra sair na ordem cronológica real.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+
 ROOT = Path(__file__).resolve().parent.parent
 SOURCES_FILE = ROOT / "pipeline" / "sources.yaml"
 SEEN_FILE = ROOT / "pipeline" / "seen.json"
@@ -75,6 +86,13 @@ GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-imag
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+
+# Conta qual provedor respondeu de fato cada uma das 3 chamadas de texto
+# (agrupar/escrever/revisar) nesta execução — impresso no resumo final.
+# Existe pra dar visibilidade real de quando o DeepSeek está sendo usado
+# e quando ele falha e cai pro Claude, sem precisar caçar isso no meio do
+# log linha por linha.
+LLM_CALL_STATS = {"deepseek_ok": 0, "deepseek_fail": 0, "anthropic_ok": 0}
 
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
 # na etapa de classificação (não é gerada matéria).
@@ -573,13 +591,27 @@ def _call_anthropic(system: str, user_content: str, max_tokens: int, model: str)
 
 def call_llm(system: str, user_content: str, max_tokens: int, anthropic_model: str) -> str:
     """Tenta o DeepSeek primeiro (se configurado); em qualquer falha, cai
-    pro Claude/Anthropic com `anthropic_model`."""
+    pro Claude/Anthropic com `anthropic_model`. Imprime qual provedor
+    respondeu de fato — assim dá pra ver, linha a linha, se um aviso de
+    "JSON malformado" logo em seguida veio do DeepSeek ou do Claude,
+    em vez de ter que adivinhar."""
     if DEEPSEEK_API_KEY:
         try:
-            return _call_deepseek(system, user_content, max_tokens)
+            result = _call_deepseek(system, user_content, max_tokens)
+            LLM_CALL_STATS["deepseek_ok"] += 1
+            print(f"    (respondido por DeepSeek: {DEEPSEEK_MODEL})")
+            return result
         except Exception as exc:  # noqa: BLE001
+            LLM_CALL_STATS["deepseek_fail"] += 1
             print(f"    aviso: DeepSeek falhou ({exc}) — usando Claude/Anthropic", file=sys.stderr)
-    return _call_anthropic(system, user_content, max_tokens, anthropic_model)
+    result = _call_anthropic(system, user_content, max_tokens, anthropic_model)
+    LLM_CALL_STATS["anthropic_ok"] += 1
+    if DEEPSEEK_API_KEY:
+        # só vale a pena anunciar "foi pro Claude" quando havia de fato
+        # outra opção (DeepSeek) configurada — sem DEEPSEEK_API_KEY, Claude
+        # é o único caminho possível e essa linha seria só ruído repetido.
+        print(f"    (respondido por Claude: {anthropic_model})")
+    return result
 
 
 def cluster_and_classify(candidates: list[dict]) -> list[dict]:
@@ -889,6 +921,9 @@ def main() -> int:
     print(f"Modelos: CLUSTER_MODEL={CLUSTER_MODEL} | MODEL={MODEL} | "
           f"FACTCHECK_MODEL={FACTCHECK_MODEL} | GEMINI_IMAGE_MODEL={GEMINI_IMAGE_MODEL}"
           f"{' (sem GEMINI_API_KEY, imagem sempre pulada)' if not GEMINI_API_KEY else ''}")
+    if DEEPSEEK_API_KEY:
+        print(f"DeepSeek configurado ({DEEPSEEK_MODEL}) — prioritário nas chamadas de "
+              f"texto, com fallback automático pro Claude em caso de falha")
 
     candidates = collect_all_candidates(feeds, seen)
     print(f"\nTotal de manchetes novas coletadas (2ª fase): {len(candidates)}")
@@ -1054,6 +1089,10 @@ def main() -> int:
     print(f"  imagem gerada com sucesso:                   {n_imagem_gerada}")
     print(f"  sem imagem (falha/sem chave/sem foto-fonte): {n_imagem_ausente}")
     print(f"Matérias publicadas:                   {created}")
+    if DEEPSEEK_API_KEY:
+        print(f"Chamadas de texto por provedor: DeepSeek OK: {LLM_CALL_STATS['deepseek_ok']} | "
+              f"DeepSeek falhou→Claude: {LLM_CALL_STATS['deepseek_fail']} | "
+              f"Claude (fallback): {LLM_CALL_STATS['anthropic_ok']}")
     print(f"seen.json: {seen_antes} antigo(s) + {seen_depois - seen_antes} novo(s)"
           f" marcado(s) nesta rodada = {seen_depois} no total")
     print("=" * 60)
