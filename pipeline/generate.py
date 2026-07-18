@@ -26,12 +26,9 @@ Variáveis de ambiente:
   MAX_PER_FEED       (opcional, padrão: 4 — manchetes novas por fonte/rodada)
   MAX_SOURCE_CHARS   (opcional, padrão: 6000 — corte de CADA texto-fonte)
   DRY_RUN            (opcional, "1" para não chamar a API — usa texto de teste)
-  UNSPLASH_ACCESS_KEY (opcional — banco de fotos principal)
-  PEXELS_API_KEY     (opcional — reserva, tentado se o Unsplash não achar
-                       nada ou não tiver chave configurada)
-  GEMINI_API_KEY      (opcional — se configurada, tenta gerar uma variação por
-                       IA da imagem que já existe na matéria-fonte, ANTES de
-                       tentar o banco de fotos genérico)
+  GEMINI_API_KEY      (obrigatória para gerar imagem — sem ela, ou se a
+                       matéria-fonte não tiver imagem, ou se a chamada
+                       falhar, a matéria fica sem imagem)
   GEMINI_IMAGE_MODEL  (opcional, padrão: gemini-2.5-flash-image — modelo de
                        geração/edição de imagem "Nano Banana" do Gemini)
 """
@@ -42,10 +39,8 @@ import base64
 import hashlib
 import json
 import os
-import random
 import re
 import sys
-import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -67,29 +62,12 @@ CLUSTER_MODEL = os.environ.get("CLUSTER_MODEL", "claude-haiku-4-5-20251001")
 MAX_PER_FEED = int(os.environ.get("MAX_PER_FEED", "4"))
 MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
-PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
-UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
 
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
 # na etapa de classificação (não é gerada matéria).
 ALLOWED_CATEGORIES = ["Kart", "F1", "F2", "F3", "F4", "GT3", "WEC", "Indy", "NASCAR"]
-
-# Termos de busca em inglês para o banco de fotos (Pexels não tem fotos dos
-# eventos específicos das matérias, então buscamos algo genérico e coerente
-# com a categoria).
-CATEGORY_STOCK_QUERIES = {
-    "Kart": "go kart racing track",
-    "F1": "formula one race car track",
-    "F2": "formula racing car track",
-    "F3": "formula racing car track",
-    "F4": "formula racing car track",
-    "GT3": "GT race car track",
-    "WEC": "endurance race car track night",
-    "Indy": "indycar open wheel race",
-    "NASCAR": "nascar stock car race",
-}
 
 CLUSTER_SYSTEM_PROMPT = f"""\
 Você organiza a pauta de um portal de notícias de automobilismo chamado BRGrid.
@@ -469,19 +447,19 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
 # Imagens: variação por IA (Gemini "Nano Banana") a partir da imagem-fonte
 # --------------------------------------------------------------------------
 #
-# Antes de cair no banco de fotos genérico (abaixo), tentamos usar a própria
-# imagem que ilustra a matéria no site de origem: baixamos essa imagem e
-# pedimos a um modelo de geração/edição de imagem (Gemini, apelidado de
-# "Nano Banana") para criar uma VARIAÇÃO dela — muda um pouco o ângulo das
-# pessoas e dos carros visíveis, mas preserva o contexto geral da cena. A
-# ideia é ter uma imagem com relação real ao fato noticiado (diferente do
-# banco de fotos, que é sempre genérico por categoria) sem republicar a
-# foto original de terceiros sem licença.
+# Única fonte de imagem do site: usamos a própria imagem que ilustra a
+# matéria no site de origem, baixamos essa imagem e pedimos a um modelo de
+# geração/edição de imagem (Gemini, apelidado de "Nano Banana") para criar
+# uma VARIAÇÃO dela — muda um pouco o ângulo das pessoas e dos carros
+# visíveis, mas preserva o contexto geral da cena. A ideia é ter uma imagem
+# com relação real ao fato noticiado, sem republicar a foto original de
+# terceiros sem licença.
 #
-# Falha em qualquer etapa (matéria-fonte sem imagem, GEMINI_API_KEY não
-# configurada, erro de rede/API) é silenciosa: a função devolve None e o
-# chamador cai para o banco de fotos (get_article_image), exatamente como o
-# Pexels é a reserva do Unsplash logo abaixo.
+# Não há mais banco de fotos genérico como reserva (Unsplash/Pexels foram
+# removidos de propósito). Se qualquer etapa falhar (matéria-fonte sem
+# imagem, GEMINI_API_KEY não configurada, erro de rede/API), a função
+# devolve None e a matéria fica sem imagem — o template usa o placeholder
+# colorido por categoria nesse caso.
 
 GENERATED_IMAGES_DIR = ROOT / "site" / "static" / "images" / "ia"
 GENERATED_IMAGES_URL_PREFIX = "/images/ia"
@@ -598,10 +576,10 @@ def generate_image_variation(image_bytes: bytes, mime_type: str) -> tuple[bytes,
 
 def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
     """Tenta, na ordem das fontes do grupo, gerar uma variação por IA da
-    imagem já usada na matéria-fonte. Devolve um dict no mesmo formato de
-    get_article_image() ({"url", "credit_name", "credit_url", "provider"})
-    ou None se nenhuma fonte do grupo render uma imagem utilizável — aí o
-    chamador cai para o banco de fotos genérico."""
+    imagem já usada na matéria-fonte. Devolve um dict
+    {"url", "credit_name", "credit_url", "provider"} ou None se nenhuma
+    fonte do grupo render uma imagem utilizável — aí a matéria fica sem
+    imagem (o template usa o placeholder colorido por categoria)."""
     if DRY_RUN or not GEMINI_API_KEY:
         return None
 
@@ -637,112 +615,6 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
             "provider": "IA (variação da imagem da fonte)",
         }
     return None
-
-
-# --------------------------------------------------------------------------
-# Imagens: banco de fotos (Unsplash, com Pexels como reserva) — usado só se
-# a variação por IA acima não gerar nada
-# --------------------------------------------------------------------------
-#
-# Cada provedor devolve um dict {"url", "credit_name", "credit_url",
-# "provider"} ou None. O Unsplash exige, pelas regras da API dele:
-#   1) hotlink direto (photo.urls.*, nunca rehost) — já fazemos isso
-#   2) atribuição visível (fotógrafo + Unsplash, com link pro perfil)
-#   3) avisar o Unsplash quando a foto é "usada" (endpoint download_location)
-# O Pexels não exige nada disso, então devolve credit_name/credit_url vazios.
-
-def trigger_unsplash_download(download_location: str) -> None:
-    """Avisa o Unsplash que a foto foi usada (exigido pelas regras da API
-    deles). Não é crítico — se falhar, só loga e segue o pipeline."""
-    if not download_location:
-        return
-    req = urllib.request.Request(
-        download_location, headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"}
-    )
-    try:
-        urllib.request.urlopen(req, timeout=10)
-    except Exception as exc:  # noqa: BLE001
-        print(f"    aviso: falha ao avisar o Unsplash sobre o uso da foto ({exc})", file=sys.stderr)
-
-
-def fetch_unsplash_image(categoria: str) -> dict | None:
-    if not UNSPLASH_ACCESS_KEY:
-        return None
-    query = CATEGORY_STOCK_QUERIES.get(categoria, "motorsport racing")
-    url = (
-        "https://api.unsplash.com/search/photos?"
-        + urllib.parse.urlencode({"query": query, "per_page": 15, "orientation": "landscape"})
-    )
-    req = urllib.request.Request(url, headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception as exc:  # noqa: BLE001
-        print(f"    aviso: falha ao buscar foto no Unsplash ({exc})", file=sys.stderr)
-        return None
-    results = data.get("results") or []
-    if not results:
-        return None
-    photo = random.choice(results)
-    image_url = photo.get("urls", {}).get("regular") or photo.get("urls", {}).get("full")
-    if not image_url:
-        return None
-
-    user = photo.get("user", {})
-    credit_name = user.get("name", "")
-    credit_url = user.get("links", {}).get("html", "")
-    if credit_url:
-        sep = "&" if "?" in credit_url else "?"
-        credit_url = f"{credit_url}{sep}utm_source=BRGrid&utm_medium=referral"
-
-    download_location = photo.get("links", {}).get("download_location", "")
-    trigger_unsplash_download(download_location)
-
-    return {"url": image_url, "credit_name": credit_name, "credit_url": credit_url, "provider": "Unsplash"}
-
-
-def fetch_pexels_image(categoria: str) -> dict | None:
-    """Reserva: só é tentado se o Unsplash não achar nada (ou não tiver
-    chave configurada). Pexels não exige atribuição."""
-    if not PEXELS_API_KEY:
-        return None
-    query = CATEGORY_STOCK_QUERIES.get(categoria, "motorsport racing")
-    url = (
-        "https://api.pexels.com/v1/search?"
-        + urllib.parse.urlencode({"query": query, "per_page": 15, "orientation": "landscape"})
-    )
-    req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except Exception as exc:  # noqa: BLE001
-        print(f"    aviso: falha ao buscar foto no Pexels ({exc})", file=sys.stderr)
-        return None
-    photos = data.get("photos") or []
-    if not photos:
-        return None
-    photo = random.choice(photos)
-    src = photo.get("src", {})
-    image_url = src.get("large") or src.get("medium") or src.get("original")
-    if not image_url:
-        return None
-    return {"url": image_url, "credit_name": "", "credit_url": "", "provider": "Pexels"}
-
-
-# Ordem de tentativa: Unsplash primeiro, Pexels como reserva.
-STOCK_IMAGE_PROVIDERS = [fetch_unsplash_image, fetch_pexels_image]
-
-
-def get_article_image(categoria: str) -> dict:
-    """Tenta cada provedor na ordem; devolve {} se nenhum achar nada (aí o
-    template usa o placeholder colorido por categoria)."""
-    if DRY_RUN:
-        return {}
-    for provider_fn in STOCK_IMAGE_PROVIDERS:
-        result = provider_fn(categoria)
-        if result:
-            return result
-    return {}
 
 
 # --------------------------------------------------------------------------
@@ -872,8 +744,6 @@ def main() -> int:
             source_names = [c["name"] for c in group_candidates]
             publish_date = max(c["date"] for c in group_candidates)
             image_info = get_ai_variation_image(group_candidates)
-            if not image_info:
-                image_info = get_article_image(article.get("categoria", ALLOWED_CATEGORIES[0]))
             write_post(article, source_names, links, publish_date, image_info)
             created += 1
         except Exception as exc:  # noqa: BLE001

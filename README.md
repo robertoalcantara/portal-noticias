@@ -145,52 +145,28 @@ testado (ver `pipeline/generate.py`, funções `cluster_and_classify`,
 `rewrite_with_claude`, `factcheck_with_claude`) para qualquer fonte futura
 que precisar de uma regra própria.
 
-### Imagens: variação por IA da imagem-fonte (principal) → Unsplash → Pexels (reservas)
-Antes de qualquer banco de fotos, `get_ai_variation_image` (em
-`pipeline/generate.py`) tenta usar a própria imagem da matéria no site de
-origem: baixa essa imagem e pede ao Gemini (modelo "Nano Banana",
-`GEMINI_IMAGE_MODEL`) para gerar uma **variação** dela — muda um pouco o
-ângulo das pessoas e dos carros visíveis, sem alterar o contexto geral
-(prompt fixo em `IMAGE_VARIATION_PROMPT`). A imagem gerada é salva em
-`site/static/images/ia/` e commitada pelo workflow junto com as matérias.
+### Imagens: variação por IA da imagem-fonte (única fonte de imagem)
+`get_ai_variation_image` (em `pipeline/generate.py`) usa a própria imagem
+da matéria no site de origem: baixa essa imagem e pede ao Gemini (modelo
+"Nano Banana", `GEMINI_IMAGE_MODEL`) para gerar uma **variação** dela —
+muda um pouco o ângulo das pessoas e dos carros visíveis, sem alterar o
+contexto geral (prompt fixo em `IMAGE_VARIATION_PROMPT`). A imagem gerada
+é salva em `site/static/images/ia/` e commitada pelo workflow junto com as
+matérias.
 
-Isso só é tentado se `GEMINI_API_KEY` estiver configurada e a matéria-fonte
-tiver uma imagem (`og:image`) que o `trafilatura` consiga extrair. Qualquer
-falha nessa etapa (sem imagem na fonte, sem chave, erro de rede/API) é
-silenciosa e cai para o banco de fotos genérico, exatamente como já
-funcionava antes:
+Não há mais banco de fotos genérico como reserva — Unsplash e Pexels foram
+removidos de propósito. Se `GEMINI_API_KEY` não estiver configurada, a
+matéria-fonte não tiver uma imagem (`og:image`) que o `trafilatura`
+consiga extrair, ou a chamada à API falhar, a matéria fica **sem imagem**
+e o template usa o placeholder colorido por categoria.
 
-Cada matéria tenta, na ordem, `fetch_unsplash_image` e depois
-`fetch_pexels_image` (lista `STOCK_IMAGE_PROVIDERS` em
-`pipeline/generate.py`) por um termo genérico da categoria
-(`CATEGORY_STOCK_QUERIES`; não dá pra achar foto do evento específico da
-matéria, então a busca é por categoria mesmo). Se nada disso achar nada
-(ou nenhuma chave estiver configurada), a matéria fica **sem imagem** e o
-template usa o placeholder colorido por categoria.
-
-**Unsplash exige atribuição** (diferente do Pexels) — as diretrizes da API
-deles pedem: hotlink direto (nunca rehost — já é o que fazemos), crédito
-visível ao fotógrafo com link pro perfil, e um aviso à API deles de que a
-foto foi "usada" (endpoint `download_location`, chamado automaticamente
-por `trigger_unsplash_download` sempre que uma foto do Unsplash é
-escolhida). O crédito só aparece na página da matéria (`single.html`),
-abaixo da imagem principal — não nos cards pequenos da home/listas, pra
-não poluir o grid. Isso é uma escolha de design, não está 100% alinhado
-com "atribuição em toda instância" que as diretrizes do Unsplash sugerem
-como ideal, mas é o compromisso prático adotado aqui. A imagem gerada por
-IA não tem crédito (não é uma foto de banco, é uma variação derivada da
-imagem da própria matéria-fonte).
+A imagem gerada por IA não tem crédito (não é uma foto de banco, é uma
+variação derivada da imagem da própria matéria-fonte).
 
 Secrets:
-- `GEMINI_API_KEY` — opcional, mas é o que liga a variação por IA. Crie em
-  <https://aistudio.google.com/apikey> (Google AI Studio, gratuito para
-  uso leve). Sem essa chave, o pipeline pula direto para Unsplash/Pexels.
-- `UNSPLASH_ACCESS_KEY` — pexels.com/api tem NADA a ver, é
-  unsplash.com/developers → sua app → Access Key. **Não precisa da
-  Secret Key** do Unsplash — ela só serve pra fluxos de OAuth em nome de
-  usuário, que não usamos aqui (só busca pública).
-- `PEXELS_API_KEY` — reserva, tentado só se a variação por IA e o Unsplash
-  não acharem nada.
+- `GEMINI_API_KEY` — necessária para ter imagem nas matérias. Crie em
+  <https://aistudio.google.com/apikey> (Google AI Studio). Sem essa chave,
+  todas as matérias saem sem imagem.
 
 ## Estrutura
 
@@ -219,24 +195,15 @@ No repositório: **Settings → Secrets and variables → Actions → New reposi
 - Nome: `ANTHROPIC_API_KEY`
 - Valor: sua chave (crie em <https://console.anthropic.com/>)
 
-### 2b. (Opcional) Variação de imagem por IA (recomendado)
+### 2b. (Opcional, mas recomendado) Variação de imagem por IA
 Mesmo caminho de secret:
 - `GEMINI_API_KEY` — crie em <https://aistudio.google.com/apikey>
-  (Google AI Studio, gratuito para uso leve). Liga a geração de variação
-  da imagem da matéria-fonte via Gemini "Nano Banana" (ver seção
-  "Imagens" acima). Sem essa chave, o pipeline vai direto para o banco de
-  fotos abaixo.
+  (Google AI Studio). Liga a geração de variação da imagem da
+  matéria-fonte via Gemini "Nano Banana" (ver seção "Imagens" acima).
 
-### 2c. (Opcional) Chaves de banco de fotos (reserva)
-Mesmo caminho de secret:
-- `UNSPLASH_ACCESS_KEY` — principal. Crie em
-  <https://unsplash.com/developers> → New Application → Access Key
-  (gratuito). Não precisa da Secret Key.
-- `PEXELS_API_KEY` — reserva, tentado só se o Unsplash não achar nada.
-  Crie em <https://www.pexels.com/api/> (gratuito, instantâneo).
-
-Sem nenhuma dessas chaves, as matérias ficam sem foto (usa o placeholder
-colorido por categoria) — não quebra nada.
+Sem essa chave, as matérias saem sem foto (usa o placeholder colorido por
+categoria) — não quebra nada. Não há mais banco de fotos genérico como
+reserva (Unsplash/Pexels foram removidos).
 
 ### 3. Hospedagem: Cloudflare Pages (já automatizado)
 O próprio workflow do GitHub Actions builda o site com Hugo e publica no
@@ -287,7 +254,6 @@ cd site && hugo server
 | Regras de agrupamento por tema | `CLUSTER_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de checagem de fatos | `FACTCHECK_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Nome e visual do site | `site/hugo.toml` e `site/static/css/style.css` |
-| Termo de busca de foto por categoria | `CATEGORY_STOCK_QUERIES` em `pipeline/generate.py` |
 | Prompt da variação de imagem por IA | `IMAGE_VARIATION_PROMPT` em `pipeline/generate.py` |
 | Modelo de geração/edição de imagem (IA) | env `GEMINI_IMAGE_MODEL` (padrão: `gemini-2.5-flash-image`) |
 
