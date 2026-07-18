@@ -707,16 +707,22 @@ def main() -> int:
     config = yaml.safe_load(SOURCES_FILE.read_text(encoding="utf-8"))
     feeds = config.get("feeds", [])
     seen = load_seen()
+    seen_antes = len(seen)
+
+    print(f"seen.json: {seen_antes} link(s) já conhecido(s) (rodadas anteriores)")
+    print(f"Modelos: CLUSTER_MODEL={CLUSTER_MODEL} | MODEL={MODEL} | "
+          f"FACTCHECK_MODEL={FACTCHECK_MODEL} | GEMINI_IMAGE_MODEL={GEMINI_IMAGE_MODEL}"
+          f"{' (sem GEMINI_API_KEY, imagem sempre pulada)' if not GEMINI_API_KEY else ''}")
 
     candidates = collect_all_candidates(feeds, seen)
-    print(f"\nTotal de manchetes novas coletadas: {len(candidates)}")
+    print(f"\nTotal de manchetes novas coletadas (2ª fase): {len(candidates)}")
 
     if not candidates:
         save_seen(seen)
         print("Nada novo. Concluído.")
         return 0
 
-    print("\nAgrupando e classificando manchetes...")
+    print(f"\nAgrupando e classificando manchetes ({CLUSTER_MODEL})...")
     try:
         groups = cluster_and_classify(candidates)
     except Exception as exc:  # noqa: BLE001
@@ -726,20 +732,40 @@ def main() -> int:
         # tentadas de novo na próxima rodada em vez de se perderem.
         return 1
 
+    # Contadores para o resumo verboso no fim da rodada — cada um marca
+    # quantos candidatos/grupos chegaram (ou não) em cada etapa do funil:
+    # agregação → escrita → revisão de fatos → geração de imagem → post.
+    n_groups = len(groups)
+    n_sem_ids = 0
+    n_fora_de_escopo = 0
+    n_sem_texto_fonte = 0
+    n_enviados_escrita = 0
+    n_descartados_pos_escrita = 0
+    n_enviados_factcheck = 0
+    n_factcheck_falhou = 0
+    n_descartados_pos_factcheck = 0
+    n_enviados_imagem = 0
+    n_imagem_gerada = 0
+    n_imagem_ausente = 0
+
     created = 0
     grouped_ids: set[int] = set()
+
+    print(f"\nAgregação: {n_groups} grupo(s) formado(s) a partir de {len(candidates)} manchete(s)")
 
     for group in groups:
         ids = [i for i in group.get("ids", []) if 0 <= i < len(candidates)]
         categoria = group.get("categoria", "DESCARTAR")
         grouped_ids.update(ids)
         if not ids:
+            n_sem_ids += 1
             continue
 
         group_candidates = [candidates[i] for i in ids]
         links = [c["link"] for c in group_candidates]
 
         if categoria not in ALLOWED_CATEGORIES:
+            n_fora_de_escopo += 1
             print(f"  descartado (fora do escopo): {group_candidates[0]['title'][:70]}")
             for link in links:
                 seen.add(link)
@@ -747,6 +773,7 @@ def main() -> int:
 
         titles_preview = " | ".join(c["title"][:50] for c in group_candidates)
         print(f"\n  + [{categoria}] {titles_preview}")
+        print(f"    fontes no grupo: {len(group_candidates)}")
 
         try:
             source_blocks: list[tuple[str, str, str | None]] = []
@@ -764,12 +791,17 @@ def main() -> int:
                 if text and len(text) >= 80:
                     source_blocks.append((c["name"], text, c.get("extra_instructions")))
 
+            print(f"    textos-fonte utilizáveis: {len(source_blocks)}/{min(len(group_candidates), 4)}")
+
             if not source_blocks:
+                n_sem_texto_fonte += 1
                 print("    pulei: nenhum texto-fonte utilizável")
                 for link in links:
                     seen.add(link)
                 continue
 
+            n_enviados_escrita += 1
+            print(f"    escrevendo matéria ({MODEL})...")
             article = rewrite_with_claude(source_blocks)
 
             if is_insufficient_content(article):
@@ -779,12 +811,16 @@ def main() -> int:
                 # imagem por IA: essa checagem tem que vir ANTES de
                 # qualquer chamada cara, senão fica gastando API à toa com
                 # algo que nunca vai virar post.
+                n_descartados_pos_escrita += 1
                 print(f"    descartado (conteúdo insuficiente): {titles_preview[:70]}")
                 continue
 
+            n_enviados_factcheck += 1
+            print(f"    revisando fatos ({FACTCHECK_MODEL})...")
             try:
                 article = factcheck_with_claude(article, source_blocks)
             except Exception as exc:  # noqa: BLE001
+                n_factcheck_falhou += 1
                 print(f"    aviso: revisão de fatos falhou, publicando rascunho ({exc})", file=sys.stderr)
 
             if is_insufficient_content(article):
@@ -793,14 +829,26 @@ def main() -> int:
                 # rascunho que não sobrou matéria de verdade. Mesma regra:
                 # descarta ANTES de gerar imagem — nunca gera imagem por IA
                 # para uma matéria que não vai ser publicada.
+                n_descartados_pos_factcheck += 1
                 print(f"    descartado (conteúdo insuficiente após revisão de fatos): {titles_preview[:70]}")
                 continue
 
             source_names = [c["name"] for c in group_candidates]
             publish_date = max(c["date"] for c in group_candidates)
+
+            n_enviados_imagem += 1
+            print(f"    gerando imagem ({GEMINI_IMAGE_MODEL})...")
             image_info = get_ai_variation_image(group_candidates)
+            if image_info:
+                n_imagem_gerada += 1
+                print(f"    imagem: ok ({image_info.get('provider', '?')})")
+            else:
+                n_imagem_ausente += 1
+                print("    imagem: nenhuma (sem GEMINI_API_KEY, sem imagem na fonte, ou falha na API)")
+
             write_post(article, source_names, links, publish_date, image_info)
             created += 1
+            print(f"    ✓ publicado: {article.get('titulo', '')[:70]}")
         except Exception as exc:  # noqa: BLE001
             print(f"    erro ao gerar/gravar: {exc}", file=sys.stderr)
         finally:
@@ -812,6 +860,27 @@ def main() -> int:
             seen.add(c["link"])
 
     save_seen(seen)
+
+    seen_depois = len(seen)
+    print("\n" + "=" * 60)
+    print("Resumo da rodada")
+    print("=" * 60)
+    print(f"Manchetes coletadas (2ª fase):        {len(candidates)}")
+    print(f"Grupos formados na agregação:          {n_groups}"
+          f" (sem ids: {n_sem_ids}, fora do escopo: {n_fora_de_escopo})")
+    print(f"Grupos sem texto-fonte (pulados):      {n_sem_texto_fonte}")
+    print(f"Enviados para escrita ({MODEL}):  {n_enviados_escrita}")
+    print(f"  descartados após escrita (insuficiente):     {n_descartados_pos_escrita}")
+    print(f"Enviados para revisão de fatos ({FACTCHECK_MODEL}): {n_enviados_factcheck}")
+    print(f"  falhas na chamada (publicado sem revisão):   {n_factcheck_falhou}")
+    print(f"  descartados após revisão (insuficiente):     {n_descartados_pos_factcheck}")
+    print(f"Enviados para gerar imagem ({GEMINI_IMAGE_MODEL}): {n_enviados_imagem}")
+    print(f"  imagem gerada com sucesso:                   {n_imagem_gerada}")
+    print(f"  sem imagem (falha/sem chave/sem foto-fonte): {n_imagem_ausente}")
+    print(f"Matérias publicadas:                   {created}")
+    print(f"seen.json: {seen_antes} antigo(s) + {seen_depois - seen_antes} novo(s)"
+          f" marcado(s) nesta rodada = {seen_depois} no total")
+    print("=" * 60)
     print(f"\nConcluído: {created} matéria(s) nova(s).")
     return 0
 
