@@ -211,6 +211,31 @@ def save_seen(seen: set[str]) -> None:
 # Coleta de candidatos (RSS ou listagem HTML)
 # --------------------------------------------------------------------------
 
+# Se a data que vem da fonte (RSS ou extraída por trafilatura da página)
+# for implausivelmente antiga, NÃO usamos ela na matéria. Caso real: uma
+# página "evergreen" de catálogo de produto (ex.: TKART) apareceu pela
+# primeira vez na listagem — link nunca visto antes, então o pipeline trata
+# como notícia nova — mas o conteúdo em si tinha data de 2022/2023. O post
+# nasceu com esse ano no frontmatter e na URL, foi parar lá no fim da lista
+# cronológica do site, "enterrado" atrás de anos de posts — mesmo sendo,
+# pra efeitos do BRGrid, uma matéria nova publicada hoje. Datas futuras
+# (relógio da fonte errado, fuso, etc.) também caem aqui: Hugo não builda
+# conteúdo com data no futuro por padrão.
+MAX_SOURCE_DATE_AGE_DAYS = 30
+
+
+def clamp_source_date(date: datetime | None) -> datetime:
+    """Devolve `date` se parecer uma publicação recente de verdade; senão
+    devolve agora (o momento em que o BRGrid descobriu/está publicando a
+    matéria) — ver comentário acima sobre matérias 'evergreen'."""
+    now = datetime.now(timezone.utc)
+    if date is None:
+        return now
+    if date > now or (now - date).days > MAX_SOURCE_DATE_AGE_DAYS:
+        return now
+    return date
+
+
 def entry_date_from_struct(struct_time) -> datetime:
     if struct_time:
         return datetime(*struct_time[:6], tzinfo=timezone.utc)
@@ -238,8 +263,10 @@ def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
             continue
         title = entry.get("title", "Sem título")
         summary = entry.get("summary", "") or entry.get("description", "")
-        date = entry_date_from_struct(
-            entry.get("published_parsed") or entry.get("updated_parsed")
+        date = clamp_source_date(
+            entry_date_from_struct(
+                entry.get("published_parsed") or entry.get("updated_parsed")
+            )
         )
         out.append(
             {
@@ -317,6 +344,7 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
                 date = datetime.fromisoformat(str(raw_date)).replace(tzinfo=timezone.utc)
             except Exception:  # noqa: BLE001
                 pass
+        date = clamp_source_date(date)
         out.append(
             {
                 "name": name,

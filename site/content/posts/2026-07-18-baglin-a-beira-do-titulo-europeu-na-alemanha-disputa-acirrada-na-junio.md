@@ -1,6 +1,6 @@
 +++
 title = "Baglin à beira do título europeu na Alemanha; disputa acirrada na Júnior"
-date = 2026-06-11T00:00:00Z
+date = 2026-07-18T00:14:26Z
 summary = "Com 79 pontos de vantagem, britânico pode conquistar o título continental neste fim de semana em Mülsen; categorias Júnior e Academy Senior também definem rumos"
 categories = ["Kart"]
 tags = ["FIA Karting", "Europeu 2026", "Mülsen", "OK"]

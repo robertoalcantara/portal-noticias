@@ -1,6 +1,6 @@
 +++
 title = "IPKarting lança edição limitada de chassis Praga Kart com logo histórico"
-date = 2024-04-24T00:00:00Z
+date = 2026-07-18T01:06:50Z
 summary = "Fabricante revive marca centenária com série especial de 150 chassis e coleção exclusiva de vestuário"
 categories = ["Kart"]
 tags = ["Praga Kart", "edição limitada", "IPKarting", "histórico"]

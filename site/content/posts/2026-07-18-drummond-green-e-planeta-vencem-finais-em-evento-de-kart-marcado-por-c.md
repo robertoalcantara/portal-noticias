@@ -1,6 +1,6 @@
 +++
 title = "Drummond, Green e Planeta vencem finais em evento de kart marcado por chuva e penalidades"
-date = 2026-06-14T00:00:00Z
+date = 2026-07-18T00:14:26Z
 summary = "Três categorias definiram seus vencedores em provas disputadas sob condições adversas, com múltiplas penalidades alterando os resultados finais."
 categories = ["Kart"]
 tags = ["OK", "OKJ", "Academy Senior", "finais"]

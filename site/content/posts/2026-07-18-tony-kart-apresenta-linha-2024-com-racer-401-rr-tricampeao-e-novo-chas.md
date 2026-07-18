@@ -1,6 +1,6 @@
 +++
 title = "Tony Kart apresenta linha 2024 com Racer 401 RR tricampeão e novo chassis Rookie EVM"
-date = 2023-12-16T00:00:00Z
+date = 2026-07-18T10:06:00Z
 summary = "Fabricante italiana consolida portfólio com modelos já consagrados e expande oferecimento para categorias MINI com versão inédita"
 categories = ["Kart"]
 tags = ["Tony Kart", "2024", "Rookie", "Racer 401 RR"]

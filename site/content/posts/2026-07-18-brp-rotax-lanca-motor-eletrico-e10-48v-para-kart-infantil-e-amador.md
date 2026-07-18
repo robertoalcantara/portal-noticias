@@ -1,6 +1,6 @@
 +++
 title = "BRP-Rotax lança motor elétrico E10 48V para kart infantil e amador"
-date = 2022-11-27T00:00:00Z
+date = 2026-07-18T10:58:02Z
 summary = "Nova unidade de propulsão foi apresentada no Rotax MAX Challenge Grand Finals em Portimão e completa portfólio de e-powertrains da marca"
 categories = ["Kart"]
 tags = ["Rotax", "motor elétrico", "e-kart", "inovação"]

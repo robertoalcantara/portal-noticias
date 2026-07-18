@@ -1,6 +1,6 @@
 +++
 title = "Exprit apresenta nova linha de chassis para 2024; CRG também renova equipamentos"
-date = 2024-04-24T00:00:00Z
+date = 2026-07-18T01:06:50Z
 summary = "Campeões mundiais anunciam atualizações de chassis e ferramentas para a próxima temporada"
 categories = ["Kart"]
 tags = ["chassis 2024", "Exprit", "CRG", "equipamentos"]

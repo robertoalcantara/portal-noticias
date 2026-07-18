@@ -1,6 +1,6 @@
 +++
 title = "IPKarting apresenta Formula K renovado com tecnologia aeroespacial e nova identidade visual"
-date = 2024-03-16T00:00:00Z
+date = 2026-07-18T10:06:00Z
 summary = "Fabricante lança linha atualizada de karts com componentes em alumínio de alta resistência, novo design e marca IPK Engineering"
 categories = ["Kart"]
 tags = ["IPKarting", "Formula K", "tecnologia", "chassis"]

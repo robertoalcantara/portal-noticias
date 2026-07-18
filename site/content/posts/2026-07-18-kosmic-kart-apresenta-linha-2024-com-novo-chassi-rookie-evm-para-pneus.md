@@ -1,6 +1,6 @@
 +++
 title = "Kosmic Kart apresenta linha 2024 com novo chassi Rookie EVM para pneus macios"
-date = 2023-12-19T00:00:00Z
+date = 2026-07-18T10:06:00Z
 summary = "A marca italiana do OTK Kart Group confirma modelos como Mercury RR e TDX, e amplia opções da categoria MINI com versão inédita do Rookie."
 categories = ["Kart"]
 tags = ["Kosmic Kart", "2024", "chassi", "MINI"]

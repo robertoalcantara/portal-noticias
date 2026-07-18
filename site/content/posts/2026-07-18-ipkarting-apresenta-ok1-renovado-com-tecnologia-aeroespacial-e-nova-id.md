@@ -1,6 +1,6 @@
 +++
 title = "IPKarting apresenta OK1 renovado com tecnologia aeroespacial e nova identidade visual"
-date = 2024-03-26T00:00:00Z
+date = 2026-07-18T09:38:22Z
 summary = "Fabricante lança chassis atualizado com componentes em alumínio de alta performance e marca IPK Engineering para destacar qualidade técnica"
 categories = ["Kart"]
 tags = ["OK1", "IPKarting", "tecnologia", "chassis"]

@@ -1,6 +1,6 @@
 +++
 title = "Vortex apresenta nova linha de motores para 2023 com inovações em produção e desempenho"
-date = 2023-01-09T00:00:00Z
+date = 2026-07-18T10:58:02Z
 summary = "OTK Kart Group renova completamente sua gama de motores com novas tecnologias e modelos para as categorias de kart a partir de 2023"
 categories = ["Kart"]
 tags = ["Vortex", "motores", "OTK", "2023"]

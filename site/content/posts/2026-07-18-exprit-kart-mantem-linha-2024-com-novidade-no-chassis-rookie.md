@@ -1,6 +1,6 @@
 +++
 title = "Exprit Kart mantém linha 2024 com novidade no chassis Rookie"
-date = 2023-12-22T00:00:00Z
+date = 2026-07-18T10:06:00Z
 summary = "Fabricante italiana confirma Noesis RR, TDX e Kid para a temporada e lança versão EVM do modelo de categoria MINI"
 categories = ["Kart"]
 tags = ["Exprit Kart", "2024", "chassis", "OTK"]

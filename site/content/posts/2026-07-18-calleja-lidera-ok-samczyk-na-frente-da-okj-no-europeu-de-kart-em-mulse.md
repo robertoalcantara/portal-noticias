@@ -1,6 +1,6 @@
 +++
 title = "Calleja lidera OK; Samczyk na frente da OKJ no Europeu de Kart em Mülsen"
-date = 2026-06-12T00:00:00Z
+date = 2026-07-18T00:14:26Z
 summary = "Terceira etapa do Campeonato Europeu FIA de Kart contou com 206 inscritos nas categorias Direct Drive e Academy Trophy na Alemanha"
 categories = ["Kart"]
 tags = ["Campeonato Europeu", "OK", "OKJ", "Academy Senior"]

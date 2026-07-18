@@ -1,6 +1,6 @@
 +++
 title = "CRG apresenta linha 2024 com chassi atualizados após temporada de destaque"
-date = 2023-11-07T00:00:00Z
+date = 2026-07-18T10:58:02Z
 summary = "Fabricante italiana lança modelos para 2024 com melhorias técnicas desenvolvidas ao longo da temporada, mantendo estrutura de sucesso em campeonatos internacionais."
 categories = ["Kart"]
 tags = ["CRG", "Kart", "2024", "Chassi"]

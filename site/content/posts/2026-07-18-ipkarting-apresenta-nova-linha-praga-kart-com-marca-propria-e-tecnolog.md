@@ -1,6 +1,6 @@
 +++
 title = "IPKarting apresenta nova linha Praga Kart com marca própria e tecnologia aeroespacial"
-date = 2024-04-12T00:00:00Z
+date = 2026-07-18T09:38:22Z
 summary = "Fabricante lança IPK Engineering como marca dedicada e moderniza chassis com alumínio de alta performance"
 categories = ["Kart"]
 tags = ["Praga Kart", "IPK Engineering", "tecnologia", "chassis"]

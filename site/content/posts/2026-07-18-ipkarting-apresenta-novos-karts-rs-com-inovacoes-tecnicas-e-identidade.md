@@ -1,6 +1,6 @@
 +++
 title = "IPKarting apresenta novos karts RS com inovações técnicas e identidade visual renovada"
-date = 2024-04-15T00:00:00Z
+date = 2026-07-18T09:38:22Z
 summary = "Fabricante lança modelos atualizados com melhorias em chassis, componentes e nova marca IPK Engineering"
 categories = ["Kart"]
 tags = ["IPKarting", "RS Kart", "tecnologia", "chassis"]
