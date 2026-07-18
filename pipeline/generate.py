@@ -544,6 +544,9 @@ def generate_image_variation(image_bytes: bytes, mime_type: str) -> tuple[bytes,
         "https://generativelanguage.googleapis.com/v1/models/"
         f"{GEMINI_IMAGE_MODEL}:generateContent"
     )
+    # Sem "generationConfig"/"responseModalities" de propósito: não faz parte
+    # do exemplo oficial de edição de imagem da API (generateContent) e causa
+    # HTTP 400 nesse modelo — o formato abaixo é o documentado.
     payload = {
         "contents": [
             {
@@ -558,7 +561,6 @@ def generate_image_variation(image_bytes: bytes, mime_type: str) -> tuple[bytes,
                 ]
             }
         ],
-        "generationConfig": {"responseModalities": ["IMAGE"]},
     }
     req = urllib.request.Request(
         url,
@@ -569,6 +571,16 @@ def generate_image_variation(image_bytes: bytes, mime_type: str) -> tuple[bytes,
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # O corpo do erro (JSON com "error.message") é o que realmente diz o
+        # que houve de errado — sem isso, só se vê "HTTP Error 400: Bad
+        # Request", que não ajuda em nada a depurar.
+        try:
+            body = exc.read().decode("utf-8", errors="replace")[:500]
+        except Exception:  # noqa: BLE001
+            body = "(sem corpo)"
+        print(f"    aviso: falha ao chamar a API de imagem do Gemini (HTTP {exc.code}: {body})", file=sys.stderr)
+        return None
     except Exception as exc:  # noqa: BLE001
         print(f"    aviso: falha ao chamar a API de imagem do Gemini ({exc})", file=sys.stderr)
         return None
