@@ -146,7 +146,7 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem crases), no format
   "corpo_markdown": "3 a 5 parágrafos em Markdown"
 }}"""
 
-FACTCHECK_SYSTEM_PROMPT = """\
+FACTCHECK_SYSTEM_PROMPT = f"""\
 Você é o revisor de fatos (fact-checker) do BRGrid, portal de automobilismo.
 Vai receber um ou mais TEXTOS-FONTE originais (rotulados por fonte) e um
 RASCUNHO em português gerado por outro editor a partir deles. Seu trabalho é
@@ -169,16 +169,23 @@ Regras:
 - Preserve o tom jornalístico e a fluidez; corrija o mínimo necessário para
   garantir precisão, sem reescrever o texto do zero.
 - Se o rascunho já estiver correto, devolva-o sem alterações.
+- Se, depois de remover/generalizar tudo que não é verificável, sobrar pouco
+  ou nenhum fato de verdade (o rascunho vira só generalidades vagas, sem
+  nenhuma informação concreta sobre o evento), NÃO devolva esse resultado
+  fraco como matéria. Em vez disso, responda com
+  "titulo": "{INSUFFICIENT_CONTENT_TITLE}" e os demais campos vazios
+  ("linha_fina": "", "tags": [], "corpo_markdown": ""), do mesmo jeito que o
+  editor faz quando o material de origem já vem insuficiente.
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem crases), EXATAMENTE
 no mesmo formato do rascunho recebido:
-{
+{{
   "titulo": "...",
   "linha_fina": "...",
   "categoria": "...",
   "tags": ["..."],
   "corpo_markdown": "..."
-}"""
+}}"""
 
 
 # --------------------------------------------------------------------------
@@ -351,6 +358,21 @@ def parse_model_json(raw: str) -> dict:
     if start != -1 and end != -1:
         cleaned = cleaned[start : end + 1]
     return json.loads(cleaned, strict=False)
+
+
+def is_insufficient_content(article: dict) -> bool:
+    """Detecta se rewrite_with_claude/factcheck_with_claude sinalizaram que
+    o material não dá pra uma matéria de verdade (ver INSUFFICIENT_CONTENT_TITLE
+    nos prompts). Checado depois das DUAS chamadas — rewrite pode sinalizar
+    de cara, e factcheck pode chegar à mesma conclusão depois de remover
+    tudo que não é verificável do rascunho. Usa também um fallback por
+    substring ("insuficiente" no título) para o caso do modelo não seguir a
+    instrução da sentinela à risca."""
+    titulo_normalizado = (article.get("titulo") or "").strip().casefold()
+    return (
+        titulo_normalizado == INSUFFICIENT_CONTENT_TITLE.casefold()
+        or "insuficiente" in titulo_normalizado
+    )
 
 
 # --------------------------------------------------------------------------
@@ -750,15 +772,13 @@ def main() -> int:
 
             article = rewrite_with_claude(source_blocks)
 
-            titulo_normalizado = (article.get("titulo") or "").strip().casefold()
-            if (
-                titulo_normalizado == INSUFFICIENT_CONTENT_TITLE.casefold()
-                or "insuficiente" in titulo_normalizado
-            ):
-                # O modelo sinalizou (ou deu a entender, na checagem de
-                # reforço acima) que os textos-fonte não davam pra uma
-                # matéria de verdade. Não publica — trata como descarte,
-                # igual a uma manchete fora do escopo.
+            if is_insufficient_content(article):
+                # O editor (rewrite_with_claude) sinalizou que os
+                # textos-fonte não davam pra uma matéria de verdade. Não
+                # publica, e — importante — não chama factcheck nem gera
+                # imagem por IA: essa checagem tem que vir ANTES de
+                # qualquer chamada cara, senão fica gastando API à toa com
+                # algo que nunca vai virar post.
                 print(f"    descartado (conteúdo insuficiente): {titles_preview[:70]}")
                 continue
 
@@ -766,6 +786,15 @@ def main() -> int:
                 article = factcheck_with_claude(article, source_blocks)
             except Exception as exc:  # noqa: BLE001
                 print(f"    aviso: revisão de fatos falhou, publicando rascunho ({exc})", file=sys.stderr)
+
+            if is_insufficient_content(article):
+                # A revisão de fatos (a ÚLTIMA etapa de verificação antes de
+                # publicar) pode ter removido tanta coisa não-verificável do
+                # rascunho que não sobrou matéria de verdade. Mesma regra:
+                # descarta ANTES de gerar imagem — nunca gera imagem por IA
+                # para uma matéria que não vai ser publicada.
+                print(f"    descartado (conteúdo insuficiente após revisão de fatos): {titles_preview[:70]}")
+                continue
 
             source_names = [c["name"] for c in group_candidates]
             publish_date = max(c["date"] for c in group_candidates)
