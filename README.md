@@ -282,7 +282,7 @@ cd site && hugo server
 | Frequência de atualização | linha `cron` em `.github/workflows/update.yml` |
 | Modelo de geração (1ª passada) | env `MODEL` (padrão: `claude-haiku-4-5-20251001`) |
 | Modelo de revisão de fatos (2ª passada) | env `FACTCHECK_MODEL` (padrão: `claude-sonnet-5`) |
-| Modelo de agrupamento/classificação | env `CLUSTER_MODEL` (padrão: `claude-sonnet-5`) |
+| Modelo de agrupamento/classificação | env `CLUSTER_MODEL` (padrão: `claude-haiku-4-5-20251001`) |
 | Tom / regras do texto | `SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de agrupamento por tema | `CLUSTER_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de checagem de fatos | `FACTCHECK_SYSTEM_PROMPT` em `pipeline/generate.py` |
