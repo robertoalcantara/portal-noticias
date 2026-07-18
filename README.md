@@ -2,9 +2,14 @@
 
 Pipeline que lê notícias de várias fontes (RSS e sites sem feed), agrupa
 manchetes que tratam do mesmo fato vindas de fontes diferentes, reescreve o
-resultado em português com a **API do Claude**, revisa os fatos com um
-segundo passe (Haiku, mesma família do modelo de geração) e publica um site
-estático (**Hugo**) que se atualiza sozinho. Sem servidor para manter.
+resultado em português com a **API do Claude** (ou DeepSeek, se configurado
+— ver "Ajustes rápidos"), revisa os fatos com um segundo passe (Haiku,
+mesma família do modelo de geração) e publica um site estático (**Hugo**)
+que se atualiza sozinho. Sem servidor para manter.
+
+Todas as matérias são assinadas pelo pseudônimo **Bruno Bandeira**, com um
+tom editorial próprio: informa os fatos com precisão, mas com ironia e
+humor — ver `SYSTEM_PROMPT` em `pipeline/generate.py`.
 
 **Escopo:** Kart, F1, F2, F3, F4, GT3, WEC, IndyCar e NASCAR.
 
@@ -271,6 +276,7 @@ cd site && hugo server
 | Nome e visual do site | `site/hugo.toml` e `site/static/css/style.css` |
 | Prompt da variação de imagem por IA | `IMAGE_VARIATION_PROMPT` em `pipeline/generate.py` |
 | Modelo de geração/edição de imagem (IA) | env `GEMINI_IMAGE_MODEL` (padrão: `gemini-2.5-flash-image`) |
+| Nome do pseudônimo/assinatura das matérias | `AUTHOR_NAME` em `pipeline/generate.py` (padrão: `Bruno Bandeira`) |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.

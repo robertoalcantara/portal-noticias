@@ -7,6 +7,7 @@
       <h1 class="post-title">{{ .Title }}</h1>
       {{ with .Params.summary }}<p class="post-dek">{{ . }}</p>{{ end }}
       <p class="meta">
+        {{ with .Params.author }}Por {{ . }}<span class="dot">•</span>{{ end }}
         <time datetime="{{ .Date.Format "2006-01-02" }}">{{ printf "%02d de %s de %d, %02d:%02d" .Date.Day (partial "ptmonth_long.html" .Date.Month) .Date.Year .Date.Hour .Date.Minute }}</time>
         {{ with .Params.sources }}<span class="dot">•</span>Fonte: {{ partial "sourcelabel.html" . }}{{ end }}
       </p>
