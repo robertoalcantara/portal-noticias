@@ -94,6 +94,18 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 # máximo um dos dois contadores fica diferente de zero numa mesma rodada.
 LLM_CALL_STATS = {"deepseek_ok": 0, "anthropic_ok": 0}
 
+
+def active_text_model(anthropic_model: str) -> str:
+    """Nome do modelo que vai de fato responder a uma chamada de texto
+    (agrupar/escrever/revisar): DEEPSEEK_MODEL se DEEPSEEK_API_KEY estiver
+    configurada (Claude não é chamado nesse caso — ver call_llm), senão o
+    modelo Claude passado (CLUSTER_MODEL/MODEL/FACTCHECK_MODEL). Usado só
+    pros prints de log ficarem corretos — sem isso, o log mostrava sempre
+    o nome do modelo Claude configurado mesmo quando quem respondia de
+    fato era o DeepSeek, o que parecia (incorretamente) que o Claude
+    ainda estava em uso."""
+    return DEEPSEEK_MODEL if DEEPSEEK_API_KEY else anthropic_model
+
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
 # na etapa de classificação (não é gerada matéria).
 ALLOWED_CATEGORIES = ["Kart", "F1", "F2", "F3", "F4", "GT3", "WEC", "Indy", "NASCAR"]
@@ -600,7 +612,6 @@ def call_llm(system: str, user_content: str, max_tokens: int, anthropic_model: s
     if DEEPSEEK_API_KEY:
         result = _call_deepseek(system, user_content, max_tokens)
         LLM_CALL_STATS["deepseek_ok"] += 1
-        print(f"    (respondido por DeepSeek: {DEEPSEEK_MODEL})")
         return result
     result = _call_anthropic(system, user_content, max_tokens, anthropic_model)
     LLM_CALL_STATS["anthropic_ok"] += 1
@@ -911,13 +922,16 @@ def main() -> int:
     seen_antes = len(seen)
 
     print(f"seen.json: {seen_antes} link(s) já conhecido(s) (rodadas anteriores)")
-    print(f"Modelos: CLUSTER_MODEL={CLUSTER_MODEL} | MODEL={MODEL} | "
-          f"FACTCHECK_MODEL={FACTCHECK_MODEL} | GEMINI_IMAGE_MODEL={GEMINI_IMAGE_MODEL}"
-          f"{' (sem GEMINI_API_KEY, imagem sempre pulada)' if not GEMINI_API_KEY else ''}")
     if DEEPSEEK_API_KEY:
-        print(f"DeepSeek configurado ({DEEPSEEK_MODEL}) — único modelo usado nas "
-              f"chamadas de texto (sem fallback pro Claude; apague DEEPSEEK_API_KEY "
-              f"pra voltar a usar Claude)")
+        print(f"Modelo de texto EM USO: DeepSeek ({DEEPSEEK_MODEL}) — Claude não é "
+              f"chamado (CLUSTER_MODEL/MODEL/FACTCHECK_MODEL configurados mas "
+              f"ignorados: {CLUSTER_MODEL}/{MODEL}/{FACTCHECK_MODEL}; apague "
+              f"DEEPSEEK_API_KEY pra usá-los de novo). GEMINI_IMAGE_MODEL={GEMINI_IMAGE_MODEL}"
+              f"{' (sem GEMINI_API_KEY, imagem sempre pulada)' if not GEMINI_API_KEY else ''}")
+    else:
+        print(f"Modelos: CLUSTER_MODEL={CLUSTER_MODEL} | MODEL={MODEL} | "
+              f"FACTCHECK_MODEL={FACTCHECK_MODEL} | GEMINI_IMAGE_MODEL={GEMINI_IMAGE_MODEL}"
+              f"{' (sem GEMINI_API_KEY, imagem sempre pulada)' if not GEMINI_API_KEY else ''}")
 
     candidates = collect_all_candidates(feeds, seen)
     print(f"\nTotal de manchetes novas coletadas (2ª fase): {len(candidates)}")
@@ -927,7 +941,7 @@ def main() -> int:
         print("Nada novo. Concluído.")
         return 0
 
-    print(f"\nAgrupando e classificando manchetes ({CLUSTER_MODEL})...")
+    print(f"\nAgrupando e classificando manchetes ({active_text_model(CLUSTER_MODEL)})...")
     try:
         groups = cluster_and_classify(candidates)
     except Exception as exc:  # noqa: BLE001
@@ -1006,7 +1020,7 @@ def main() -> int:
                 continue
 
             n_enviados_escrita += 1
-            print(f"    escrevendo matéria ({MODEL})...")
+            print(f"    escrevendo matéria ({active_text_model(MODEL)})...")
             article = rewrite_with_claude(source_blocks)
 
             if is_insufficient_content(article):
@@ -1021,7 +1035,7 @@ def main() -> int:
                 continue
 
             n_enviados_factcheck += 1
-            print(f"    revisando fatos ({FACTCHECK_MODEL})...")
+            print(f"    revisando fatos ({active_text_model(FACTCHECK_MODEL)})...")
             try:
                 article = factcheck_with_claude(article, source_blocks)
             except Exception as exc:  # noqa: BLE001
@@ -1074,9 +1088,9 @@ def main() -> int:
     print(f"Grupos formados na agregação:          {n_groups}"
           f" (sem ids: {n_sem_ids}, fora do escopo: {n_fora_de_escopo})")
     print(f"Grupos sem texto-fonte (pulados):      {n_sem_texto_fonte}")
-    print(f"Enviados para escrita ({MODEL}):  {n_enviados_escrita}")
+    print(f"Enviados para escrita ({active_text_model(MODEL)}):  {n_enviados_escrita}")
     print(f"  descartados após escrita (insuficiente):     {n_descartados_pos_escrita}")
-    print(f"Enviados para revisão de fatos ({FACTCHECK_MODEL}): {n_enviados_factcheck}")
+    print(f"Enviados para revisão de fatos ({active_text_model(FACTCHECK_MODEL)}): {n_enviados_factcheck}")
     print(f"  falhas na chamada (publicado sem revisão):   {n_factcheck_falhou}")
     print(f"  descartados após revisão (insuficiente):     {n_descartados_pos_factcheck}")
     print(f"Enviados para gerar imagem ({GEMINI_IMAGE_MODEL}): {n_enviados_imagem}")
