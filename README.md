@@ -2,9 +2,10 @@
 
 Pipeline que lê notícias de várias fontes (RSS e sites sem feed), agrupa
 manchetes que tratam do mesmo fato vindas de fontes diferentes, reescreve o
-resultado em português com a **API do Claude** (ou DeepSeek, se configurado
-— ver "Ajustes rápidos"), revisa os fatos com um segundo passe (Haiku,
-mesma família do modelo de geração) e publica um site estático (**Hugo**)
+resultado em português com a **API do Claude** — ou, se `DEEPSEEK_API_KEY`
+estiver configurada, com o **DeepSeek no lugar do Claude** (ver "Ajustes
+rápidos") —, revisa os fatos com um segundo passe (Haiku, mesma família do
+modelo de geração, ou DeepSeek também) e publica um site estático (**Hugo**)
 que se atualiza sozinho. Sem servidor para manter.
 
 Todas as matérias são assinadas pelo pseudônimo **Bruno Bandeira**, com um
@@ -211,17 +212,17 @@ Sem essa chave, as matérias saem sem foto (usa o placeholder colorido por
 categoria) — não quebra nada. Não há mais banco de fotos genérico como
 reserva (Unsplash/Pexels foram removidos).
 
-### 2c. (Opcional) DeepSeek como modelo prioritário de texto
+### 2c. (Opcional) DeepSeek em vez do Claude para o texto
 Mesmo caminho de secret:
 - `DEEPSEEK_API_KEY` — crie em <https://platform.deepseek.com/api_keys>.
 
-Se configurada, o DeepSeek passa a ser o modelo **prioritário** nas três
-chamadas de texto (agrupamento, geração e revisão de fatos). Se a chamada
-ao DeepSeek falhar por qualquer motivo (rede, quota, resposta vazia ou
-inválida), o pipeline cai automaticamente para o Claude/Anthropic na
-mesma etapa — sem essa chave, ou com ela ausente/inválida, continua
-usando só Claude, como antes. `ANTHROPIC_API_KEY` continua obrigatória
-mesmo com o DeepSeek configurado (é o fallback).
+Se essa secret existir, o DeepSeek passa a ser o **único** modelo usado
+nas três chamadas de texto (agrupamento, geração e revisão de fatos) —
+o Claude simplesmente não é chamado. Não há fallback: se o DeepSeek
+falhar (rede, quota, resposta vazia ou inválida), o erro sobe normalmente
+(a matéria/rodada falha e tenta de novo depois), em vez de cair pro
+Claude. Pra voltar a usar o Claude, **apague a secret `DEEPSEEK_API_KEY`**
+— nesse caso `ANTHROPIC_API_KEY` volta a ser obrigatória.
 
 ### 3. Hospedagem: Cloudflare Pages (já automatizado)
 O próprio workflow do GitHub Actions builda o site com Hugo e publica no
@@ -268,7 +269,7 @@ cd site && hugo server
 | Modelo de geração (1ª passada) | env `MODEL` (padrão: `claude-haiku-4-5-20251001`) |
 | Modelo de revisão de fatos (2ª passada) | env `FACTCHECK_MODEL` (padrão: `claude-haiku-4-5-20251001`) |
 | Modelo de agrupamento/classificação | env `CLUSTER_MODEL` (padrão: `claude-haiku-4-5-20251001`) |
-| Usar DeepSeek como modelo prioritário (fallback: Claude) | env `DEEPSEEK_API_KEY` (ausente = só Claude) |
+| Usar só o DeepSeek em vez do Claude (sem fallback) | env `DEEPSEEK_API_KEY` (apague pra voltar ao Claude) |
 | Modelo do DeepSeek | env `DEEPSEEK_MODEL` (padrão: `deepseek-chat`) |
 | Tom / regras do texto | `SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de agrupamento por tema | `CLUSTER_SYSTEM_PROMPT` em `pipeline/generate.py` |
@@ -291,10 +292,10 @@ cd site && hugo server
   barato) se quiser reduzir ainda mais — notícia não precisa ser
   instantânea. Confira o preço atual em <https://docs.claude.com>.
 - **DeepSeek** (opcional): se `DEEPSEEK_API_KEY` estiver configurada, as
-  mesmas três chamadas tentam o DeepSeek primeiro (custo por token bem
-  menor que o Claude) e só caem pro Claude/Anthropic se o DeepSeek falhar.
-  `ANTHROPIC_API_KEY` continua necessária como fallback. Confira o preço
-  atual em <https://api-docs.deepseek.com/quick_start/pricing>.
+  mesmas três chamadas usam só o DeepSeek (custo por token bem menor que o
+  Claude), sem fallback — o Claude não é chamado enquanto essa secret
+  existir. Confira o preço atual em
+  <https://api-docs.deepseek.com/quick_start/pricing>.
 - **API do Gemini (variação de imagem)**: uma chamada de geração/edição de
   imagem por matéria, só quando a matéria-fonte tem imagem e `GEMINI_API_KEY`
   está configurada. Confira o preço atual do modelo (`GEMINI_IMAGE_MODEL`) em

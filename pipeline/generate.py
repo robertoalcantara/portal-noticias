@@ -19,7 +19,8 @@ O script é resiliente: erro num grupo não derruba a execução inteira.
 Rode localmente com `python pipeline/generate.py` ou deixe o GitHub Actions rodar.
 
 Variáveis de ambiente:
-  ANTHROPIC_API_KEY  (obrigatória, exceto em DRY_RUN)
+  ANTHROPIC_API_KEY  (obrigatória, exceto em DRY_RUN ou se DEEPSEEK_API_KEY
+                     estiver definida — nesse caso o Claude não é chamado)
   MODEL              (opcional, padrão: claude-haiku-4-5-20251001 — geração)
   FACTCHECK_MODEL    (opcional, padrão: claude-haiku-4-5-20251001 — revisão/checagem)
   CLUSTER_MODEL      (opcional, padrão: claude-haiku-4-5-20251001 — agrupar/classificar)
@@ -31,13 +32,13 @@ Variáveis de ambiente:
                        falhar, a matéria fica sem imagem)
   GEMINI_IMAGE_MODEL  (opcional, padrão: gemini-2.5-flash-image — modelo de
                        geração/edição de imagem "Nano Banana" do Gemini)
-  DEEPSEEK_API_KEY    (opcional — se definida, o DeepSeek é usado como
-                       modelo PRIORITÁRIO nas 3 chamadas de texto (agrupar,
-                       escrever, checar fatos). Se a chamada ao DeepSeek
-                       falhar por qualquer motivo — rede, quota, resposta
-                       vazia/inválida — o pipeline cai automaticamente pro
-                       Claude/Anthropic na mesma etapa. Sem essa variável,
-                       usa só Claude/Anthropic, como antes)
+  DEEPSEEK_API_KEY    (opcional — se definida, o DeepSeek passa a ser o
+                       ÚNICO modelo usado nas 3 chamadas de texto (agrupar,
+                       escrever, checar fatos): NÃO há fallback pro Claude
+                       se o DeepSeek falhar (rede, quota, resposta
+                       vazia/inválida) — o erro sobe normalmente, do
+                       mesmo jeito que qualquer outra falha do pipeline.
+                       Pra voltar a usar o Claude, apague essa variável)
   DEEPSEEK_MODEL      (opcional, padrão: deepseek-chat)
 """
 
@@ -89,10 +90,9 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 # Conta qual provedor respondeu de fato cada uma das 3 chamadas de texto
 # (agrupar/escrever/revisar) nesta execução — impresso no resumo final.
-# Existe pra dar visibilidade real de quando o DeepSeek está sendo usado
-# e quando ele falha e cai pro Claude, sem precisar caçar isso no meio do
-# log linha por linha.
-LLM_CALL_STATS = {"deepseek_ok": 0, "deepseek_fail": 0, "anthropic_ok": 0}
+# Como DeepSeek e Claude são mutuamente exclusivos (ver call_llm), no
+# máximo um dos dois contadores fica diferente de zero numa mesma rodada.
+LLM_CALL_STATS = {"deepseek_ok": 0, "anthropic_ok": 0}
 
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
 # na etapa de classificação (não é gerada matéria).
@@ -532,16 +532,16 @@ def is_insufficient_content(article: dict) -> bool:
 
 
 # --------------------------------------------------------------------------
-# Chamadas ao LLM: DeepSeek (prioritário, se configurado) com fallback
-# automático pro Claude/Anthropic
+# Chamadas ao LLM: DeepSeek (se configurado) OU Claude/Anthropic —
+# mutuamente exclusivos, sem fallback entre os dois
 # --------------------------------------------------------------------------
 #
 # call_llm() é o único ponto por onde as 3 etapas de texto (agrupar,
 # escrever, checar fatos) falam com um modelo de linguagem. Se
-# DEEPSEEK_API_KEY estiver definida, tenta o DeepSeek primeiro; qualquer
-# falha (rede, HTTP, quota, JSON malformado, resposta vazia) cai pro Claude
-# na mesma chamada — o restante do pipeline nem fica sabendo qual dos dois
-# respondeu.
+# DEEPSEEK_API_KEY estiver definida, usa SÓ o DeepSeek — se a chamada
+# falhar (rede, HTTP, quota, resposta vazia), o erro sobe pra quem chamou
+# em vez de cair pro Claude. Pra voltar a usar o Claude, é só apagar a
+# variável DEEPSEEK_API_KEY.
 
 def _call_deepseek(system: str, user_content: str, max_tokens: int) -> str:
     body = json.dumps(
@@ -590,27 +590,20 @@ def _call_anthropic(system: str, user_content: str, max_tokens: int, model: str)
 
 
 def call_llm(system: str, user_content: str, max_tokens: int, anthropic_model: str) -> str:
-    """Tenta o DeepSeek primeiro (se configurado); em qualquer falha, cai
-    pro Claude/Anthropic com `anthropic_model`. Imprime qual provedor
-    respondeu de fato — assim dá pra ver, linha a linha, se um aviso de
-    "JSON malformado" logo em seguida veio do DeepSeek ou do Claude,
-    em vez de ter que adivinhar."""
+    """Se DEEPSEEK_API_KEY estiver configurada, usa SOMENTE o DeepSeek —
+    NÃO cai pro Claude/Anthropic se o DeepSeek falhar (rede, quota,
+    resposta vazia/inválida etc.); o erro sobe pra quem chamou, do mesmo
+    jeito que qualquer outro erro do pipeline (rede, parsing...) já é
+    tratado (ver o try/except em torno de cada etapa em main()). Pra
+    voltar a usar o Claude, apague a variável DEEPSEEK_API_KEY — sem ela,
+    usa Claude/Anthropic normalmente, como sempre."""
     if DEEPSEEK_API_KEY:
-        try:
-            result = _call_deepseek(system, user_content, max_tokens)
-            LLM_CALL_STATS["deepseek_ok"] += 1
-            print(f"    (respondido por DeepSeek: {DEEPSEEK_MODEL})")
-            return result
-        except Exception as exc:  # noqa: BLE001
-            LLM_CALL_STATS["deepseek_fail"] += 1
-            print(f"    aviso: DeepSeek falhou ({exc}) — usando Claude/Anthropic", file=sys.stderr)
+        result = _call_deepseek(system, user_content, max_tokens)
+        LLM_CALL_STATS["deepseek_ok"] += 1
+        print(f"    (respondido por DeepSeek: {DEEPSEEK_MODEL})")
+        return result
     result = _call_anthropic(system, user_content, max_tokens, anthropic_model)
     LLM_CALL_STATS["anthropic_ok"] += 1
-    if DEEPSEEK_API_KEY:
-        # só vale a pena anunciar "foi pro Claude" quando havia de fato
-        # outra opção (DeepSeek) configurada — sem DEEPSEEK_API_KEY, Claude
-        # é o único caminho possível e essa linha seria só ruído repetido.
-        print(f"    (respondido por Claude: {anthropic_model})")
     return result
 
 
@@ -922,8 +915,9 @@ def main() -> int:
           f"FACTCHECK_MODEL={FACTCHECK_MODEL} | GEMINI_IMAGE_MODEL={GEMINI_IMAGE_MODEL}"
           f"{' (sem GEMINI_API_KEY, imagem sempre pulada)' if not GEMINI_API_KEY else ''}")
     if DEEPSEEK_API_KEY:
-        print(f"DeepSeek configurado ({DEEPSEEK_MODEL}) — prioritário nas chamadas de "
-              f"texto, com fallback automático pro Claude em caso de falha")
+        print(f"DeepSeek configurado ({DEEPSEEK_MODEL}) — único modelo usado nas "
+              f"chamadas de texto (sem fallback pro Claude; apague DEEPSEEK_API_KEY "
+              f"pra voltar a usar Claude)")
 
     candidates = collect_all_candidates(feeds, seen)
     print(f"\nTotal de manchetes novas coletadas (2ª fase): {len(candidates)}")
@@ -1090,9 +1084,7 @@ def main() -> int:
     print(f"  sem imagem (falha/sem chave/sem foto-fonte): {n_imagem_ausente}")
     print(f"Matérias publicadas:                   {created}")
     if DEEPSEEK_API_KEY:
-        print(f"Chamadas de texto por provedor: DeepSeek OK: {LLM_CALL_STATS['deepseek_ok']} | "
-              f"DeepSeek falhou→Claude: {LLM_CALL_STATS['deepseek_fail']} | "
-              f"Claude (fallback): {LLM_CALL_STATS['anthropic_ok']}")
+        print(f"Chamadas de texto respondidas pelo DeepSeek: {LLM_CALL_STATS['deepseek_ok']}")
     print(f"seen.json: {seen_antes} antigo(s) + {seen_depois - seen_antes} novo(s)"
           f" marcado(s) nesta rodada = {seen_depois} no total")
     print("=" * 60)
