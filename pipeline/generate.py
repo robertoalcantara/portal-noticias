@@ -168,6 +168,12 @@ Regras obrigatórias:
   demais campos vazios ("linha_fina": "", "tags": [], "corpo_markdown": "").
   O sistema descarta essa resposta automaticamente.
 - A(s) fonte(s) será(ão) creditada(s) pelo sistema; você não precisa citá-las.
+- IMPORTANTE (formatação do JSON): para citação irônica ou ênfase, prefira
+  aspas simples (‘assim’) em vez de aspas duplas — evita quebrar o JSON.
+  Se ainda assim precisar usar aspas duplas DENTRO de um valor de string,
+  escape cada uma delas como \" (barra invertida antes da aspas). Nunca
+  deixe uma aspas dupla sem escapar dentro de um valor — isso invalida o
+  JSON inteiro e a matéria é perdida.
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem crases), no formato:
 {{
@@ -212,6 +218,11 @@ Regras:
   "titulo": "{INSUFFICIENT_CONTENT_TITLE}" e os demais campos vazios
   ("linha_fina": "", "tags": [], "corpo_markdown": ""), do mesmo jeito que o
   editor faz quando o material de origem já vem insuficiente.
+- IMPORTANTE (formatação do JSON): se usar aspas duplas dentro de um valor
+  de string (para citação ou ironia), escape cada uma delas como \"
+  (barra invertida antes da aspas) — nunca deixe uma aspas dupla sem
+  escapar dentro de um valor, isso invalida o JSON e a matéria é perdida.
+  Prefira aspas simples (‘assim’) quando possível.
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem crases), EXATAMENTE
 no mesmo formato do rascunho recebido:
@@ -412,15 +423,79 @@ def collect_all_candidates(feeds: list[dict], seen: set[str]) -> list[dict]:
 # Parsing de JSON tolerante
 # --------------------------------------------------------------------------
 
+# Campos das respostas de rewrite_with_claude/factcheck_with_claude, na
+# ordem em que são pedidos nos prompts. Usado só pelo reparo tolerante
+# abaixo (_lenient_json_repair) — a resposta de cluster_and_classify usa
+# outro esquema ("grupos") e não passa por esse fallback.
+_ARTICLE_FIELD_ORDER = ["titulo", "linha_fina", "categoria", "tags", "corpo_markdown"]
+
+
+def _lenient_json_repair(cleaned: str) -> dict:
+    """Fallback para quando json.loads falha ao parsear a resposta do
+    modelo. Causa mais comum: o texto usa aspas duplas "irônicas" dentro
+    de um valor string (titulo/linha_fina/corpo_markdown) sem escapá-las,
+    quebrando a sintaxe do JSON ("Expecting ',' delimiter",
+    "Unterminated string", etc.) — mais frequente desde que o tom editorial
+    ficou mais sarcástico/citação-pesado.
+
+    Como o formato é sempre um objeto plano com as mesmas chaves na mesma
+    ordem (ver _ARTICLE_FIELD_ORDER), localizamos cada "chave": no texto
+    bruto e tratamos tudo até a próxima chave (ou o fim do objeto) como o
+    valor daquele campo — cortando a aspas de abertura e a ÚLTIMA aspas
+    restante no trecho (em vez da primeira, que é o que quebra o parser
+    JSON oficial quando há aspas internas não escapadas no meio do valor).
+    Não é um parser de JSON genérico; é deliberadamente específico a este
+    esquema fixo."""
+    positions = []
+    for key in _ARTICLE_FIELD_ORDER:
+        m = re.search(rf'"{key}"\s*:\s*', cleaned)
+        if m:
+            positions.append((key, m.start(), m.end()))
+    if not positions:
+        raise ValueError("nenhuma chave conhecida (titulo/corpo_markdown/...) encontrada")
+    positions.sort(key=lambda p: p[1])
+
+    result: dict = {}
+    for i, (key, _start, val_start) in enumerate(positions):
+        chunk_end = positions[i + 1][1] if i + 1 < len(positions) else len(cleaned)
+        chunk = cleaned[val_start:chunk_end]
+
+        if key == "tags":
+            result[key] = re.findall(r'"([^"]*)"', chunk)
+            continue
+
+        chunk = chunk.strip()
+        if chunk.startswith('"'):
+            chunk = chunk[1:]
+        last_quote = chunk.rfind('"')
+        chunk = chunk[:last_quote] if last_quote != -1 else chunk.rstrip().rstrip(",").rstrip("}").strip()
+        chunk = chunk.replace('\\"', '"').replace("\\n", "\n").replace("\\\\", "\\")
+        result[key] = chunk
+
+    if not result.get("titulo") or not result.get("corpo_markdown"):
+        raise ValueError("reparo não encontrou titulo/corpo_markdown utilizáveis")
+    return result
+
+
 def parse_model_json(raw: str) -> dict:
-    """Extrai o JSON da resposta do modelo, tolerando crases ou texto extra."""
+    """Extrai o JSON da resposta do modelo, tolerando crases ou texto extra.
+    Se o JSON estiver malformado (tipicamente aspas internas não escapadas),
+    tenta um reparo tolerante antes de desistir — ver _lenient_json_repair."""
     cleaned = raw.strip()
     cleaned = re.sub(r"^```(?:json)?", "", cleaned).strip()
     cleaned = re.sub(r"```$", "", cleaned).strip()
     start, end = cleaned.find("{"), cleaned.rfind("}")
     if start != -1 and end != -1:
         cleaned = cleaned[start : end + 1]
-    return json.loads(cleaned, strict=False)
+    try:
+        return json.loads(cleaned, strict=False)
+    except json.JSONDecodeError as exc:
+        try:
+            repaired = _lenient_json_repair(cleaned)
+        except Exception:  # noqa: BLE001
+            raise exc from None  # erro original é mais informativo se o reparo também falhar
+        print(f"    aviso: JSON malformado ({exc}), recuperado via reparo tolerante", file=sys.stderr)
+        return repaired
 
 
 def is_insufficient_content(article: dict) -> bool:
