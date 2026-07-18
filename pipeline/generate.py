@@ -428,7 +428,7 @@ def rewrite_with_claude(source_blocks: list[tuple[str, str, str | None]]) -> dic
 
     message = client.messages.create(
         model=MODEL,
-        max_tokens=1500,
+        max_tokens=4096,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
@@ -457,7 +457,7 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
     )
     message = client.messages.create(
         model=FACTCHECK_MODEL,
-        max_tokens=1500,
+        max_tokens=4096,
         system=FACTCHECK_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
