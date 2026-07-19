@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import os
 import re
@@ -58,6 +59,7 @@ from urllib.parse import urljoin
 import feedparser
 import trafilatura
 import yaml
+from PIL import Image
 from slugify import slugify
 
 import cards as cards_module
@@ -791,30 +793,87 @@ IMAGE_VARIATION_PROMPT = (
 )
 
 
-def extract_source_image_url(html: str, page_url: str) -> str | None:
-    """Extrai a imagem principal (og:image/twitter:image) da página da
-    matéria-fonte usando os metadados que o trafilatura já sabe ler."""
+# Pedaços de URL que indicam que a "imagem" é na verdade um logo, ícone,
+# avatar, sprite ou pixel de rastreamento — não uma foto de matéria. Serve
+# só como filtro rápido antes de gastar uma requisição baixando o arquivo.
+_BAD_IMAGE_URL_HINTS = (
+    "logo", "icon", "favicon", "sprite", "avatar", "gravatar", "placeholder",
+    "default", "blank", "1x1", "pixel", "spacer", "badge", "banner-ad",
+)
+
+# Meta tags conhecidas de imagem principal, em ordem de preferência —
+# usadas como reforço/fallback ao que o trafilatura já extrai, pra casos
+# em que o parser dele não encontra a tag (ordem de atributos inesperada,
+# HTML malformado, etc.).
+_IMAGE_META_PATTERNS = (
+    re.compile(r'<meta[^>]+property=["\']og:image:secure_url["\'][^>]+content=["\']([^"\']+)', re.I),
+    re.compile(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)', re.I),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.I),
+    re.compile(r'<meta[^>]+name=["\']twitter:image(?::src)?["\'][^>]+content=["\']([^"\']+)', re.I),
+    re.compile(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image(?::src)?["\']', re.I),
+    re.compile(r'<link[^>]+rel=["\']image_src["\'][^>]+href=["\']([^"\']+)', re.I),
+)
+
+
+def _looks_like_real_photo(url: str) -> bool:
+    lowered = url.lower()
+    if lowered.endswith(".svg"):
+        return False
+    return not any(hint in lowered for hint in _BAD_IMAGE_URL_HINTS)
+
+
+def extract_source_image_candidates(html: str, page_url: str) -> list[str]:
+    """Extrai candidatos a imagem principal da matéria-fonte, em ordem de
+    confiança: primeiro o que o trafilatura lê (og:image/twitter:image via
+    parser dedicado), depois um fallback via regex direto no HTML (cobre
+    casos em que o parser não acha a tag). Filtra candidatos que parecem
+    ser logo/ícone/avatar/pixel de rastreamento em vez de foto real —
+    tentar a "foto certa" em vez da primeira imagem que aparecer."""
     if not html:
-        return None
+        return []
+
+    candidates: list[str] = []
+
     try:
         meta = trafilatura.extract_metadata(html, default_url=page_url)
     except Exception as exc:  # noqa: BLE001
         print(f"    aviso: falha ao ler metadata da página-fonte ({exc})", file=sys.stderr)
-        return None
-    if not meta:
-        return None
-    # extract_metadata() normalmente devolve um Document, mas tratamos dict
-    # também pelo mesmo motivo do bare_extraction() acima: já causou crash
-    # em produção assumir um formato só.
-    image = meta.get("image") if isinstance(meta, dict) else getattr(meta, "image", None)
-    if not image:
-        return None
-    return urljoin(page_url, image)
+        meta = None
+    if meta:
+        # extract_metadata() normalmente devolve um Document, mas tratamos
+        # dict também pelo mesmo motivo do bare_extraction() acima: já
+        # causou crash em produção assumir um formato só.
+        image = meta.get("image") if isinstance(meta, dict) else getattr(meta, "image", None)
+        if image:
+            candidates.append(image)
+
+    for pattern in _IMAGE_META_PATTERNS:
+        match = pattern.search(html)
+        if match:
+            candidates.append(match.group(1))
+
+    seen: set[str] = set()
+    result: list[str] = []
+    for raw in candidates:
+        absolute = urljoin(page_url, raw)
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        if _looks_like_real_photo(absolute):
+            result.append(absolute)
+    return result
 
 
-def download_image_bytes(url: str, max_bytes: int = 8_000_000) -> tuple[bytes, str] | None:
+def download_image_bytes(
+    url: str,
+    max_bytes: int = 8_000_000,
+    min_width: int = 480,
+    min_height: int = 270,
+) -> tuple[bytes, str] | None:
     """Baixa uma imagem e devolve (bytes, mime_type). None se falhar, vier
-    vazia/pequena demais (provável placeholder) ou grande demais."""
+    vazia/pequena demais (provável placeholder), grande demais, ou com
+    dimensões pequenas demais pra ser uma foto de matéria de verdade (em
+    vez de um logo/ícone/thumbnail que passou pelo filtro de URL)."""
     req = urllib.request.Request(
         url, headers={"User-Agent": "Mozilla/5.0 (compatible; BRGridBot/1.0)"}
     )
@@ -827,7 +886,15 @@ def download_image_bytes(url: str, max_bytes: int = 8_000_000) -> tuple[bytes, s
         return None
     if not data or len(data) < 500 or len(data) > max_bytes:
         return None
-    if not content_type.startswith("image/"):
+    if not content_type.startswith("image/") or content_type == "image/svg+xml":
+        return None
+    try:
+        with Image.open(io.BytesIO(data)) as img:
+            width, height = img.size
+    except Exception:
+        # Não conseguiu nem abrir como imagem — não é um arquivo confiável.
+        return None
+    if width < min_width or height < min_height:
         return None
     return data, content_type
 
@@ -911,10 +978,14 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
             html = trafilatura.fetch_url(link)
         if not html:
             continue
-        image_url = extract_source_image_url(html, link)
-        if not image_url:
+        image_candidates = extract_source_image_candidates(html, link)
+        if not image_candidates:
             continue
-        downloaded = download_image_bytes(image_url)
+        downloaded = None
+        for image_url in image_candidates:
+            downloaded = download_image_bytes(image_url)
+            if downloaded:
+                break
         if not downloaded:
             continue
         image_bytes, mime_type = downloaded

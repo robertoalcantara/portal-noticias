@@ -9,34 +9,37 @@
       </p>
     </section>
   {{ else }}
-    {{ $hero := index $posts 0 }}
-    {{ $heroCat := "Kart" }}
-    {{ with $hero.Params.categories }}{{ $heroCat = index . 0 }}{{ end }}
-    {{ $rest := after 1 $posts }}
+    {{/* Destaque só entra em cena pra matérias que têm foto de verdade —
+         sem isso, o placeholder colorido genérico não passa a impressão
+         de "principal manchete do site" que a seção de destaque pede. */}}
+    {{ $withPhoto := where (where $posts "Params.image" "ne" nil) "Params.image" "ne" "" }}
+    {{ $hero := "" }}
+    {{ $rest := $posts }}
+    {{ if $withPhoto }}
+      {{ $hero = index $withPhoto 0 }}
+      {{ $rest = where $posts "RelPermalink" "ne" $hero.RelPermalink }}
+    {{ end }}
     {{ $latest := first 6 $rest }}
 
-    <section class="hero">
-      <a class="hero-media" href="{{ $hero.RelPermalink }}">
-        {{ with $hero.Params.image }}
-          <img src="{{ . }}" alt="" loading="eager" />
-        {{ else }}
-          {{ $key := partial "catkey.html" $heroCat }}
-          <span class="placeholder placeholder-{{ $key }} placeholder-hero">
-            <span class="placeholder-mark">{{ $heroCat }}</span>
-          </span>
-        {{ end }}
-      </a>
-      <div class="hero-body">
-        <span class="eyebrow">Destaque</span>
-        {{ partial "chip.html" $heroCat }}
-        <h1 class="hero-title"><a href="{{ $hero.RelPermalink }}">{{ $hero.Title }}</a></h1>
-        {{ with $hero.Params.summary }}<p class="hero-dek">{{ . }}</p>{{ end }}
-        <p class="meta">
-          <time datetime="{{ $hero.Date.Format "2006-01-02" }}">{{ printf "%02d %s %d, %02d:%02d" $hero.Date.Day (partial "ptmonth.html" $hero.Date.Month) $hero.Date.Year $hero.Date.Hour $hero.Date.Minute }}</time>
-          {{ with $hero.Params.sources }}<span class="dot">•</span>{{ partial "sourcelabel.html" . }}{{ end }}
-        </p>
-      </div>
-    </section>
+    {{ if $hero }}
+      {{ $heroCat := "Kart" }}
+      {{ with $hero.Params.categories }}{{ $heroCat = index . 0 }}{{ end }}
+      <section class="hero">
+        <a class="hero-media" href="{{ $hero.RelPermalink }}">
+          <img src="{{ $hero.Params.image }}" alt="" loading="eager" />
+        </a>
+        <div class="hero-body">
+          <span class="eyebrow">Destaque</span>
+          {{ partial "chip.html" $heroCat }}
+          <h1 class="hero-title"><a href="{{ $hero.RelPermalink }}">{{ $hero.Title }}</a></h1>
+          {{ with $hero.Params.summary }}<p class="hero-dek">{{ . }}</p>{{ end }}
+          <p class="meta">
+            <time datetime="{{ $hero.Date.Format "2006-01-02" }}">{{ printf "%02d %s %d, %02d:%02d" $hero.Date.Day (partial "ptmonth.html" $hero.Date.Month) $hero.Date.Year $hero.Date.Hour $hero.Date.Minute }}</time>
+            {{ with $hero.Params.sources }}<span class="dot">•</span>{{ partial "sourcelabel.html" . }}{{ end }}
+          </p>
+        </div>
+      </section>
+    {{ end }}
 
     {{ if $latest }}
       <section class="section">
