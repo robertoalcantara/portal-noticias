@@ -10,7 +10,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link
-  href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+  href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Fraunces:opsz,wght@9..144,500..700&family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
   rel="stylesheet"
 />
 <link rel="stylesheet" href="{{ "css/style.css" | relURL }}" />
+<script>
+  /* Progressive enhancement: só ativa as animações de entrada
+     (reveal-on-scroll) se JS estiver rodando de verdade — sem isso,
+     .reveal nunca sairia de opacity:0 e o conteúdo ficaria invisível
+     pra quem navega sem JS. Ver site/static/js/main.js e a regra
+     ".js .reveal" no CSS. */
+  document.documentElement.classList.add("js");
+</script>

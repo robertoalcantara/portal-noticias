@@ -39,7 +39,7 @@
     </section>
 
     {{ if $latest }}
-      <section class="section">
+      <section class="section reveal">
         <h2 class="section-title">Últimas notícias</h2>
         <div class="grid">
           {{ range $latest }}{{ partial "card.html" . }}{{ end }}
@@ -52,14 +52,12 @@
       {{ $catName := . }}
       {{ $catPosts := where $posts "Params.categories" "intersect" (slice $catName) }}
       {{ if $catPosts }}
-        <section class="section">
+        <section class="section reveal">
           <div class="section-head">
             <h2 class="section-title">{{ $catName }}</h2>
             <a class="section-link" href="{{ printf "/categories/%s/" ($catName | urlize) | relURL }}">Ver tudo →</a>
           </div>
-          <div class="hscroll">
-            {{ range first 6 $catPosts }}{{ partial "card.html" . }}{{ end }}
-          </div>
+          {{ partial "hscroll.html" (first 6 $catPosts) }}
         </section>
       {{ end }}
     {{ end }}

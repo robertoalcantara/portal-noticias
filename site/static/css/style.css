@@ -27,14 +27,36 @@
 
   --max: 1160px;
 
-  --display: "Archivo Black", system-ui, sans-serif;
+  /* Archivo Black fica só pra marca (logo) — ótimo em 3 letras, pesado
+     demais pra manchete longa e irônica (o tom do Bruno Bandeira usa
+     frases inteiras como título). Fraunces é a serifada de exibição:
+     tem a mesma presença gráfica mas está desenhada pra ler bem em
+     tamanhos de manchete e blocos de texto mais longos — é o padrão
+     que veículos editoriais (não só motorsport) usam pra parecer
+     profissional sem ficar genérico. */
+  --brand: "Archivo Black", system-ui, sans-serif;
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
   --condensed: "Barlow Condensed", system-ui, sans-serif;
   --body: "Inter", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* curva de easing compartilhada pelas transições/animações —
+     "ease-out" com uma leve sobra no fim, mais vivo que ease padrão */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Habilita transição de página nativa do navegador (Chrome/Edge recentes)
+   entre documentos do mesmo site — puramente progressivo: navegadores
+   sem suporte simplesmente ignoram a regra e navegam como sempre. */
+@view-transition {
+  navigation: auto;
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
 
 body {
   margin: 0;
@@ -48,7 +70,7 @@ body {
 
 .wrap { width: 100%; max-width: var(--max); margin: 0 auto; padding: 0 22px; }
 
-a { color: inherit; text-decoration: none; }
+a { color: inherit; text-decoration: none; transition: color 0.18s var(--ease); }
 a:focus-visible, button:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 3px;
@@ -69,7 +91,7 @@ img { display: block; width: 100%; height: 100%; object-fit: cover; }
 }
 .brand { display: flex; align-items: baseline; gap: 12px; }
 .brand-mark {
-  font-family: var(--display); font-size: 22px; letter-spacing: 0.02em; color: var(--ink);
+  font-family: var(--brand); font-size: 22px; letter-spacing: 0.02em; color: var(--ink);
 }
 .brand-mark::before {
   content: ""; display: inline-block; width: 9px; height: 20px;
@@ -85,7 +107,7 @@ img { display: block; width: 100%; height: 100%; object-fit: cover; }
   font-family: var(--condensed); font-weight: 600; font-size: 15px;
   text-transform: uppercase; letter-spacing: 0.03em;
 }
-.nav a { color: var(--muted); padding-bottom: 2px; border-bottom: 2px solid transparent; }
+.nav a { color: var(--muted); padding-bottom: 2px; border-bottom: 2px solid transparent; transition: color 0.18s var(--ease), border-color 0.18s var(--ease); }
 .nav a:hover { color: var(--ink); border-bottom-color: var(--f1); }
 
 /* ---------- utilidades ---------- */
@@ -162,19 +184,26 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 .section-link:hover { color: var(--ink); }
 
 /* ---------- destaque (hero) ---------- */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
 .hero {
   display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px;
   padding-bottom: 32px; border-bottom: 1px solid var(--line);
+  animation: fade-in-up 0.7s var(--ease) both;
 }
 .hero-media {
   display: block; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden;
   background: var(--bg-alt);
 }
+.hero-media img { transition: transform 0.6s var(--ease); }
+.hero-media:hover img { transform: scale(1.035); }
 .hero-body { display: flex; flex-direction: column; justify-content: center; gap: 10px; }
 .hero-body .chip { width: fit-content; }
 .hero-title {
-  font-family: var(--display); font-size: clamp(24px, 3.2vw, 36px); line-height: 1.08;
-  letter-spacing: -0.005em; margin: 4px 0 6px;
+  font-family: var(--display); font-weight: 600; font-size: clamp(24px, 3.2vw, 36px);
+  line-height: 1.12; letter-spacing: -0.01em; margin: 4px 0 6px;
 }
 .hero-title a:hover { color: var(--f1); }
 .hero-dek { font-size: 17px; color: var(--muted); margin: 0 0 6px; max-width: 52ch; }
@@ -183,17 +212,66 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 .grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
 }
+
+/* Carrossel horizontal de categoria (site/layouts/partials/hscroll.html).
+   Antes era só "overflow-x: auto" sem nenhuma pista visual de que dava
+   pra rolar — em desktop com mouse (sem trackpad/touch) isso é quase
+   impossível de descobrir sozinho. Agora tem: seta de navegação (só
+   aparece com hover/foco, some quando não há mais o que rolar pro lado),
+   fade nas bordas indicando conteúdo fora da tela, arraste com o mouse
+   e roda do mouse mapeada pra scroll horizontal — tudo isso via
+   site/static/js/main.js (initHscrolls). Sem JS, continua um scroll-x
+   nativo comum, só sem os enfeites. */
+.hscroll-wrap { position: relative; margin: 0 -4px; }
 .hscroll {
   display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory;
-  padding-bottom: 6px; margin: 0 -4px; padding-left: 4px;
+  padding: 2px 4px 14px; margin: 0; scroll-padding-left: 4px;
+  scrollbar-width: none; -ms-overflow-style: none;
+  cursor: grab;
+  mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
 }
+.hscroll::-webkit-scrollbar { display: none; }
+.hscroll.is-dragging { cursor: grabbing; scroll-snap-type: none; }
+.hscroll.is-at-start {
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+.hscroll.is-at-end {
+  mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 100%);
+}
+.hscroll.is-at-start.is-at-end { mask-image: none; -webkit-mask-image: none; }
 .hscroll .card { flex: 0 0 260px; scroll-snap-align: start; }
 
-.card { display: flex; flex-direction: column; }
+.hscroll-btn {
+  position: absolute; top: 72px; width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--line-strong); background: #fff; color: var(--ink);
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  cursor: pointer; box-shadow: 0 6px 16px rgba(20, 22, 27, 0.14);
+  opacity: 0; pointer-events: none; z-index: 2;
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease);
+}
+.hscroll-wrap:hover .hscroll-btn,
+.hscroll-btn:focus-visible { opacity: 1; pointer-events: auto; }
+.hscroll-btn:hover { background: var(--ink); color: #fff; transform: scale(1.07); }
+.hscroll-btn:disabled { opacity: 0 !important; pointer-events: none !important; }
+.hscroll-btn svg { width: 18px; height: 18px; display: block; }
+.hscroll-prev { left: -8px; }
+.hscroll-next { right: -8px; }
+@media (hover: none) and (pointer: coarse) {
+  /* em touch o gesto nativo já resolve; a seta só ocuparia espaço à toa */
+  .hscroll-btn { display: none; }
+}
+
+.card { display: flex; flex-direction: column; transition: transform 0.25s var(--ease); }
+.card:hover { transform: translateY(-3px); }
 .card-media {
   display: block; aspect-ratio: 16 / 10; border-radius: 8px; overflow: hidden;
   background: var(--bg-alt); margin-bottom: 12px;
 }
+.card-media img { transition: transform 0.5s var(--ease); }
+.card:hover .card-media img, .card:focus-within .card-media img { transform: scale(1.045); }
 .card-body { display: flex; flex-direction: column; gap: 6px; }
 .card-body .chip { width: fit-content; }
 .card-title {
@@ -205,11 +283,12 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 
 /* ---------- página da matéria ---------- */
 .post { max-width: 700px; margin: 0 auto; }
+.post-enter { animation: fade-in-up 0.5s var(--ease) both; }
 .post-head { padding-bottom: 20px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
 .post-head .chip { margin-bottom: 10px; }
 .post-title {
-  font-family: var(--display); font-size: clamp(26px, 4.2vw, 38px); line-height: 1.1;
-  letter-spacing: -0.005em; margin: 6px 0 12px;
+  font-family: var(--display); font-weight: 600; font-size: clamp(26px, 4.2vw, 38px);
+  line-height: 1.14; letter-spacing: -0.01em; margin: 6px 0 12px;
 }
 .post-dek { font-size: 19px; color: var(--muted); margin: 0 0 14px; }
 
@@ -241,11 +320,11 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 
 /* ---------- listas de seção ---------- */
 .list-head { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 28px; }
-.list-title { font-family: var(--display); font-size: clamp(24px, 3.6vw, 34px); margin: 8px 0 0; }
+.list-title { font-family: var(--display); font-weight: 600; font-size: clamp(24px, 3.6vw, 34px); line-height: 1.15; margin: 8px 0 0; }
 
 /* ---------- vazio ---------- */
 .empty { padding: 40px 0; }
-.empty h1 { font-family: var(--display); font-size: 28px; margin: 6px 0 12px; }
+.empty h1 { font-family: var(--display); font-weight: 600; font-size: 28px; margin: 6px 0 12px; }
 .empty-note { color: var(--muted); max-width: 46ch; }
 .empty code { font-family: var(--mono); font-size: 0.9em; }
 
@@ -255,6 +334,37 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 .foot-line { display: flex; align-items: center; gap: 10px; font-family: var(--condensed); font-weight: 600; font-size: 17px; margin: 0 0 6px; text-transform: uppercase; }
 .foot-mark { display: inline-block; width: 7px; height: 16px; background: var(--f1); transform: skewX(-14deg); }
 .foot-note { color: var(--muted); font-size: 13px; margin: 0; }
+
+/* ---------- entrada animada ao rolar a página ---------- */
+/* .reveal só fica escondida (opacity:0) quando a classe "js" está no
+   <html> (ver script inline em partials/head.html) — sem JS, o
+   conteúdo já nasce visível, sem depender de nada pra aparecer.
+   site/static/js/main.js (initReveal) observa cada .reveal e adiciona
+   "is-visible" quando ela entra na viewport. */
+.js .reveal {
+  opacity: 0; transform: translateY(18px);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+}
+.js .reveal.is-visible { opacity: 1; transform: none; }
+
+/* dentro de um bloco revelado (seção da home OU a grade da página de
+   categoria), os cards entram em cascata (leve atraso crescente por
+   posição) em vez de todos de uma vez — mesma ideia usada em
+   listas/grades de produtos de sites bem cuidados. Combinador
+   descendente (sem ">") funciona tanto quando .card é neto/bisneto
+   (section.reveal > .grid > .card, ou > .hscroll-wrap > .hscroll >
+   .card) quanto quando é filho direto (.grid.reveal > .card, usado em
+   _default/list.html). */
+.js .reveal .card {
+  opacity: 0; transform: translateY(14px);
+  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
+}
+.js .reveal.is-visible .card { opacity: 1; transform: none; }
+.js .reveal.is-visible .card:nth-child(2) { transition-delay: 0.05s; }
+.js .reveal.is-visible .card:nth-child(3) { transition-delay: 0.1s; }
+.js .reveal.is-visible .card:nth-child(4) { transition-delay: 0.15s; }
+.js .reveal.is-visible .card:nth-child(5) { transition-delay: 0.2s; }
+.js .reveal.is-visible .card:nth-child(6) { transition-delay: 0.25s; }
 
 /* ---------- responsivo ---------- */
 @media (max-width: 860px) {
@@ -266,8 +376,10 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
   .grid { grid-template-columns: 1fr; }
   .nav { gap: 14px; font-size: 13.5px; }
   .section-title { font-size: 19px; }
+  .hscroll-btn { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+  .js .reveal, .js .reveal .card { opacity: 1 !important; transform: none !important; }
 }

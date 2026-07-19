@@ -1,0 +1,23 @@
+{{- /*
+  Carrossel horizontal de cards (usado nas seções de categoria da home).
+  Recebe uma lista de páginas. Setas, fade nas bordas, arraste com mouse
+  e roda do mouse são ligados via site/static/js/main.js (initHscrolls);
+  sem JS, continua um scroll-x nativo comum, só sem os enfeites.
+  Uso: {{ partial "hscroll.html" (first 6 $catPosts) }}
+*/ -}}
+{{- $posts := . -}}
+<div class="hscroll-wrap">
+  <button class="hscroll-btn hscroll-prev" type="button" aria-label="Matérias anteriores">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </button>
+  <div class="hscroll" tabindex="0" role="group" aria-label="Lista de matérias — arraste ou use as setas para navegar">
+    {{ range $posts }}{{ partial "card.html" . }}{{ end }}
+  </div>
+  <button class="hscroll-btn hscroll-next" type="button" aria-label="Mais matérias">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </button>
+</div>
