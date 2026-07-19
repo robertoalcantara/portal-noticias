@@ -107,8 +107,10 @@ def active_text_model(anthropic_model: str) -> str:
     return DEEPSEEK_MODEL if DEEPSEEK_API_KEY else anthropic_model
 
 # Categorias que o portal cobre. Qualquer manchete fora disso é descartada
-# na etapa de classificação (não é gerada matéria).
-ALLOWED_CATEGORIES = ["Kart", "F1", "F2", "F3", "F4", "GT3", "WEC", "Indy", "NASCAR"]
+# na etapa de classificação (não é gerada matéria). F4 foi removida do
+# escopo ativo — matérias antigas dessa categoria continuam publicadas
+# (não foram apagadas), só não entram mais matérias novas nela.
+ALLOWED_CATEGORIES = ["Kart", "F1", "F2", "F3", "GT3", "WEC", "Indy", "NASCAR"]
 
 # Pseudônimo fixo usado como assinatura de todas as matérias geradas pelo
 # pipeline (aparece no frontmatter como `author` e é exibido na página da
@@ -138,7 +140,7 @@ Tarefas:
    1 manchete, se não houver duplicata).
 3. Para cada grupo, atribua uma categoria dentre exatamente estas:
    {", ".join(ALLOWED_CATEGORIES)}
-   (Kart = kartismo em qualquer lugar do mundo; F1/F2/F3/F4 = categorias da
+   (Kart = kartismo em qualquer lugar do mundo; F1/F2/F3 = categorias da
    pirâmide FIA de monopostos; GT3 = carros de turismo/GT; WEC = Mundial de
    Endurance; Indy = IndyCar; NASCAR = NASCAR.)
 4. Se o assunto do grupo NÃO se encaixa em nenhuma dessas categorias (ex.:

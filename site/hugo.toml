@@ -10,8 +10,8 @@ paginate = 20
 timeZone = "America/Fortaleza"
 
 [params]
-  tagline = "Kart, F1, F2, F3, F4, GT3, WEC, Indy e NASCAR"
-  description = "Cobertura de Kart, Fórmula 1, F2, F3, F4, GT3, WEC, IndyCar e NASCAR — Brasil e o mundo."
+  tagline = "Kart, F1, F2, F3, GT3, WEC, Indy e NASCAR"
+  description = "Cobertura de Kart, Fórmula 1, F2, F3, GT3, WEC, IndyCar e NASCAR — Brasil e o mundo."
 
 [taxonomies]
   categoria = "categories"

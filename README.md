@@ -12,7 +12,7 @@ Todas as matérias são assinadas pelo pseudônimo **Bruno Bandeira**, com um
 tom editorial próprio: informa os fatos com precisão, mas com ironia e
 humor — ver `SYSTEM_PROMPT` em `pipeline/generate.py`.
 
-**Escopo:** Kart, F1, F2, F3, F4, GT3, WEC, IndyCar e NASCAR.
+**Escopo:** Kart, F1, F2, F3, GT3, WEC, IndyCar e NASCAR.
 
 ```
 fontes (RSS + sites sem feed) → agrupar/classificar (Haiku) → Haiku reescreve

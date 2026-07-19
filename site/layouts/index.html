@@ -47,7 +47,7 @@
       </section>
     {{ end }}
 
-    {{ $categoryList := slice "F1" "F2" "F3" "F4" "Kart" "GT3" "WEC" "Indy" "NASCAR" }}
+    {{ $categoryList := slice "F1" "F2" "F3" "Kart" "GT3" "WEC" "Indy" "NASCAR" }}
     {{ range $categoryList }}
       {{ $catName := . }}
       {{ $catPosts := where $posts "Params.categories" "intersect" (slice $catName) }}
