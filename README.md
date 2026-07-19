@@ -254,6 +254,23 @@ falhar (rede, quota, resposta vazia ou inválida), o erro sobe normalmente
 Claude. Pra voltar a usar o Claude, **apague a secret `DEEPSEEK_API_KEY`**
 — nesse caso `ANTHROPIC_API_KEY` volta a ser obrigatória.
 
+Todas as chamadas ao DeepSeek usam o modo **JSON Output** nativo da API
+(`response_format: {"type": "json_object"}`) — reduz bastante o risco de
+JSON malformado/truncado (a causa mais comum de falha na revisão de
+fatos e nas outras etapas). A própria doc do DeepSeek avisa que esse
+modo pode ocasionalmente devolver conteúdo vazio (bug conhecido deles);
+quando isso acontece, a etapa falha e a matéria segue sem essa correção
+específica (nunca derruba a rodada inteira) — ver `_call_deepseek()` em
+`pipeline/generate.py`.
+
+Os nomes `deepseek-chat`/`deepseek-reasoner` (usados como padrão até
+pouco tempo atrás) serão descontinuados pela DeepSeek em 24/07/2026 —
+o padrão agora é `deepseek-v4-flash` (o sucessor direto, sem mudança de
+comportamento). Se quiser usar o modelo mais forte (e mais caro) pra
+alguma etapa específica, `deepseek-v4-pro` também está disponível via
+`DEEPSEEK_MODEL` (troca as três chamadas de uma vez — não tem, hoje, uma
+env separada só pra revisão de fatos).
+
 ### 3. Hospedagem: Cloudflare Pages (já automatizado)
 O próprio workflow do GitHub Actions builda o site com Hugo e publica no
 Cloudflare Pages a cada rodada — não depende de conectar o repositório pela
@@ -300,7 +317,7 @@ cd site && hugo server
 | Modelo de revisão de fatos (2ª passada) | env `FACTCHECK_MODEL` (padrão: `claude-haiku-4-5-20251001`) |
 | Modelo de agrupamento/classificação | env `CLUSTER_MODEL` (padrão: `claude-haiku-4-5-20251001`) |
 | Usar só o DeepSeek em vez do Claude (sem fallback) | env `DEEPSEEK_API_KEY` (apague pra voltar ao Claude) |
-| Modelo do DeepSeek | env `DEEPSEEK_MODEL` (padrão: `deepseek-chat`) |
+| Modelo do DeepSeek | env `DEEPSEEK_MODEL` (padrão: `deepseek-v4-flash`; `deepseek-v4-pro` é a opção mais forte/cara) |
 | Modelo de geração dos textos dos cards de Stories | env `CARDS_MODEL` (padrão: `claude-haiku-4-5-20251001`, ignorado se DeepSeek ativo) |
 | Tom / regras do texto | `SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de agrupamento por tema | `CLUSTER_SYSTEM_PROMPT` em `pipeline/generate.py` |

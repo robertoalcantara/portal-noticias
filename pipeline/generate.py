@@ -39,7 +39,9 @@ Variáveis de ambiente:
                        vazia/inválida) — o erro sobe normalmente, do
                        mesmo jeito que qualquer outra falha do pipeline.
                        Pra voltar a usar o Claude, apague essa variável)
-  DEEPSEEK_MODEL      (opcional, padrão: deepseek-chat)
+  DEEPSEEK_MODEL      (opcional, padrão: deepseek-v4-flash — os nomes
+                      antigos deepseek-chat/deepseek-reasoner saem de linha
+                      em 24/07/2026)
 """
 
 from __future__ import annotations
@@ -91,7 +93,7 @@ DRY_RUN = os.environ.get("DRY_RUN") == "1"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 # Conta qual provedor respondeu de fato cada uma das 3 chamadas de texto
@@ -604,6 +606,15 @@ def is_insufficient_content(article: dict) -> bool:
 # variável DEEPSEEK_API_KEY.
 
 def _call_deepseek(system: str, user_content: str, max_tokens: int) -> str:
+    # Todo texto que a gente pede pro DeepSeek é JSON (ver os *_SYSTEM_PROMPT
+    # acima, todos terminam pedindo "responda APENAS com um objeto JSON
+    # válido"). Sem o response_format abaixo, o modelo às vezes acrescenta
+    # texto fora do JSON ou corta a string no meio de uma aspas — foi a causa
+    # dos erros de "JSON malformado"/falha na revisão de fatos que já vimos
+    # em produção. O JSON Output nativo do DeepSeek reduz bastante isso (as
+    # duas exigências da própria doc — response_format e a palavra "json" +
+    # exemplo de formato no prompt — já estão cobertas: os prompts já pedem
+    # "objeto JSON válido" e mostram o formato esperado).
     body = json.dumps(
         {
             "model": DEEPSEEK_MODEL,
@@ -612,6 +623,7 @@ def _call_deepseek(system: str, user_content: str, max_tokens: int) -> str:
                 {"role": "user", "content": user_content},
             ],
             "max_tokens": max_tokens,
+            "response_format": {"type": "json_object"},
         }
     ).encode("utf-8")
     req = urllib.request.Request(
@@ -632,6 +644,10 @@ def _call_deepseek(system: str, user_content: str, max_tokens: int) -> str:
     choice = payload["choices"][0]
     content = (choice.get("message") or {}).get("content")
     if not content or not content.strip():
+        # A própria doc do DeepSeek avisa que o JSON Output pode ocasionalmente
+        # devolver conteúdo vazio (bug conhecido deles, "actively working on
+        # optimizing"). Não tem workaround do nosso lado além de deixar subir
+        # como falha — quem chama já trata isso como não-fatal.
         raise RuntimeError(f"resposta vazia (finish_reason={choice.get('finish_reason')})")
     return content
 
