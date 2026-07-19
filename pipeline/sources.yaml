@@ -39,6 +39,15 @@ feeds:
     type: rss
     url: "https://www.fia.com/rss/press-release"
 
+  # ge.globo.com não expõe um RSS dedicado pra Fórmula 1 (só feeds
+  # genéricos do G1/GE) -> raspagem da página de listagem, mesma técnica
+  # dos outros sites sem RSS. link_contains cobre o padrão de URL de
+  # matéria do Globo (".../noticia/AAAA/MM/DD/titulo.ghtml").
+  - name: "ge Globo (F1)"
+    type: list
+    list_url: "https://ge.globo.com/motor/formula-1/"
+    link_contains: "/noticia/"
+
   # --- Kart (europeu / internacional) ---
   # O feed RSS oficial (vroomkart.com/rss.xml) não funciona mais / mudou de
   # URL. O site não tem RSS ativo, então usamos raspagem da página de
