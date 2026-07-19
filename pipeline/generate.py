@@ -792,6 +792,19 @@ IMAGE_VARIATION_PROMPT = (
     "contexto geral. Também evitar trocar as cores."
 )
 
+# A API do Gemini cobra tokens proporcionalmente ao tamanho da imagem
+# enviada (mais tiles = mais tokens) — e a imagem-fonte, direto do site
+# original, normalmente vem em resolução bem mais alta do que a variação
+# precisa. Reduzimos o tamanho ANTES de enviar pra geração, por dois
+# motivos independentes: (1) corta a resolução em 40% (fica com 60% do
+# tamanho original) — pedido explícito do dono do projeto, a qualidade da
+# imagem gerada estava alta demais; (2) além disso, limita a MAIOR
+# dimensão a um teto fixo, pra imagens-fonte enormes não voltarem a
+# estourar o custo de token só por já começarem gigantes antes do corte
+# de 40%.
+IMAGE_GEN_RESIZE_SCALE = 0.6
+IMAGE_GEN_MAX_DIMENSION = 1024
+
 
 # Pedaços de URL que indicam que a "imagem" é na verdade um logo, ícone,
 # avatar, sprite ou pixel de rastreamento — não uma foto de matéria. Serve
@@ -897,6 +910,46 @@ def download_image_bytes(
     if width < min_width or height < min_height:
         return None
     return data, content_type
+
+
+def resize_for_generation(
+    image_bytes: bytes,
+    mime_type: str,
+    scale: float = IMAGE_GEN_RESIZE_SCALE,
+    max_dimension: int = IMAGE_GEN_MAX_DIMENSION,
+) -> tuple[bytes, str]:
+    """Reduz a imagem-fonte antes de mandar pra API do Gemini: corta
+    `scale` do tamanho original (0.6 = fica com 60%, ou seja, reduz em
+    40%) e, além disso, garante que a maior dimensão não passe de
+    `max_dimension` px — o que for mais restritivo entre os dois vale.
+    Se der qualquer problema pra reprocessar a imagem, devolve a original
+    sem redimensionar (a chamada à API simplesmente sai mais cara nesse
+    caso raro, em vez de quebrar a geração)."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            width, height = img.size
+            target_w = max(1, round(width * scale))
+            target_h = max(1, round(height * scale))
+            longest = max(target_w, target_h)
+            if longest > max_dimension:
+                factor = max_dimension / longest
+                target_w = max(1, round(target_w * factor))
+                target_h = max(1, round(target_h * factor))
+            if (target_w, target_h) == (width, height):
+                return image_bytes, mime_type
+            resized = img.convert("RGB") if img.mode not in ("RGB", "RGBA") else img.copy()
+            resized = resized.resize((target_w, target_h), Image.LANCZOS)
+            buf = io.BytesIO()
+            if mime_type == "image/png":
+                resized.save(buf, format="PNG")
+                out_mime = "image/png"
+            else:
+                resized.convert("RGB").save(buf, format="JPEG", quality=85)
+                out_mime = "image/jpeg"
+            return buf.getvalue(), out_mime
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: falha ao redimensionar imagem antes do envio ({exc}), usando original", file=sys.stderr)
+        return image_bytes, mime_type
 
 
 def generate_image_variation(
@@ -1006,6 +1059,7 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
         if not downloaded:
             continue
         image_bytes, mime_type = downloaded
+        image_bytes, mime_type = resize_for_generation(image_bytes, mime_type)
         variation = generate_image_variation(image_bytes, mime_type)
         if not variation:
             continue
