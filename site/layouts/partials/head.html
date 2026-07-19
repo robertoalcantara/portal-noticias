@@ -14,11 +14,3 @@
   rel="stylesheet"
 />
 <link rel="stylesheet" href="{{ "css/style.css" | relURL }}" />
-<script>
-  /* Progressive enhancement: só ativa as animações de entrada
-     (reveal-on-scroll) se JS estiver rodando de verdade — sem isso,
-     .reveal nunca sairia de opacity:0 e o conteúdo ficaria invisível
-     pra quem navega sem JS. Ver site/static/js/main.js e a regra
-     ".js .reveal" no CSS. */
-  document.documentElement.classList.add("js");
-</script>

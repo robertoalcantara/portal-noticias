@@ -45,13 +45,6 @@
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Habilita transição de página nativa do navegador (Chrome/Edge recentes)
-   entre documentos do mesmo site — puramente progressivo: navegadores
-   sem suporte simplesmente ignoram a regra e navegam como sempre. */
-@view-transition {
-  navigation: auto;
-}
-
 * { box-sizing: border-box; }
 html {
   -webkit-text-size-adjust: 100%;
@@ -335,37 +328,6 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 .foot-mark { display: inline-block; width: 7px; height: 16px; background: var(--f1); transform: skewX(-14deg); }
 .foot-note { color: var(--muted); font-size: 13px; margin: 0; }
 
-/* ---------- entrada animada ao rolar a página ---------- */
-/* .reveal só fica escondida (opacity:0) quando a classe "js" está no
-   <html> (ver script inline em partials/head.html) — sem JS, o
-   conteúdo já nasce visível, sem depender de nada pra aparecer.
-   site/static/js/main.js (initReveal) observa cada .reveal e adiciona
-   "is-visible" quando ela entra na viewport. */
-.js .reveal {
-  opacity: 0; transform: translateY(18px);
-  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
-}
-.js .reveal.is-visible { opacity: 1; transform: none; }
-
-/* dentro de um bloco revelado (seção da home OU a grade da página de
-   categoria), os cards entram em cascata (leve atraso crescente por
-   posição) em vez de todos de uma vez — mesma ideia usada em
-   listas/grades de produtos de sites bem cuidados. Combinador
-   descendente (sem ">") funciona tanto quando .card é neto/bisneto
-   (section.reveal > .grid > .card, ou > .hscroll-wrap > .hscroll >
-   .card) quanto quando é filho direto (.grid.reveal > .card, usado em
-   _default/list.html). */
-.js .reveal .card {
-  opacity: 0; transform: translateY(14px);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
-}
-.js .reveal.is-visible .card { opacity: 1; transform: none; }
-.js .reveal.is-visible .card:nth-child(2) { transition-delay: 0.05s; }
-.js .reveal.is-visible .card:nth-child(3) { transition-delay: 0.1s; }
-.js .reveal.is-visible .card:nth-child(4) { transition-delay: 0.15s; }
-.js .reveal.is-visible .card:nth-child(5) { transition-delay: 0.2s; }
-.js .reveal.is-visible .card:nth-child(6) { transition-delay: 0.25s; }
-
 /* ---------- responsivo ---------- */
 @media (max-width: 860px) {
   .grid { grid-template-columns: repeat(2, 1fr); }
@@ -381,5 +343,4 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
-  .js .reveal, .js .reveal .card { opacity: 1 !important; transform: none !important; }
 }

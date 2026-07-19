@@ -1,44 +1,22 @@
-/* BRGrid — pequenas interações de front-end (sem framework, sem build):
-   1) reveal-on-scroll: seções/cards entram com fade+slide quando
-      aparecem na viewport;
-   2) carrossel horizontal de categoria (.hscroll-wrap): setas,
-      fade nas bordas, arraste com mouse e roda do mouse mapeada pra
-      scroll horizontal.
-   Ambos são puramente incrementais — sem JS (ou em navegador antigo
-   sem IntersectionObserver), o site continua funcional e legível. */
+/* BRGrid — pequena interação de front-end (sem framework, sem build):
+   carrossel horizontal de categoria (.hscroll-wrap): setas, fade nas
+   bordas, arraste com mouse e roda do mouse mapeada pra scroll
+   horizontal. Puramente incremental — sem JS, o carrossel continua um
+   scroll-x nativo comum, só sem os enfeites.
+
+   Nota: chegou a existir aqui um reveal-on-scroll (fade+slide via
+   IntersectionObserver, com o conteúdo começando em opacity:0 até o JS
+   rodar) — foi removido depois de causar página em branco ao navegar
+   pra uma categoria (ver histórico do repositório). Automação/animação
+   que pode deixar conteúdo de verdade invisível se algo falhar não
+   compensa o risco num site de notícias — daqui pra frente, animação
+   de entrada só via CSS puro (@keyframes) que nunca deixa nada preso
+   em opacity:0. */
 (function () {
   "use strict";
 
   var reduceMotion =
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  function initReveal() {
-    var items = document.querySelectorAll(".reveal");
-    if (!items.length) return;
-
-    if (reduceMotion || !("IntersectionObserver" in window)) {
-      items.forEach(function (el) {
-        el.classList.add("is-visible");
-      });
-      return;
-    }
-
-    var io = new IntersectionObserver(
-      function (entries) {
-        entries.forEach(function (entry) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible");
-            io.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
-    );
-
-    items.forEach(function (el) {
-      io.observe(el);
-    });
-  }
 
   function initHscrolls() {
     var wraps = document.querySelectorAll(".hscroll-wrap");
@@ -155,7 +133,6 @@
   }
 
   function init() {
-    initReveal();
     initHscrolls();
   }
 

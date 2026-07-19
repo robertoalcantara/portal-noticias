@@ -1,12 +1,12 @@
 {{ define "main" }}
-  <section class="list-head reveal">
+  <section class="list-head">
     <span class="eyebrow">{{ if .Data.Singular }}{{ .Data.Singular }}{{ else }}Seção{{ end }}</span>
     <h1 class="list-title">
       {{ if .Data.Term }}{{ partial "catlabel.html" .Data.Term }}{{ else }}{{ .Title }}{{ end }}
     </h1>
   </section>
 
-  <div class="grid reveal">
+  <div class="grid">
     {{ range .Pages }}{{ partial "card.html" . }}{{ end }}
   </div>
 {{ end }}
