@@ -315,6 +315,29 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 .list-head { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 28px; }
 .list-title { font-family: var(--display); font-weight: 600; font-size: clamp(24px, 3.6vw, 34px); line-height: 1.15; margin: 8px 0 0; }
 
+/* ---------- página de cards (Stories) ---------- */
+.cards-page { max-width: 920px; margin: 0 auto; }
+.cards-head { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 28px; }
+.cards-title {
+  font-family: var(--display); font-weight: 600; font-size: clamp(24px, 3.6vw, 32px);
+  line-height: 1.15; margin: 8px 0 10px;
+}
+.cards-note { color: var(--muted); max-width: 60ch; margin: 0 0 12px; }
+.cards-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 22px;
+}
+.cards-item { margin: 0; }
+.cards-item img {
+  display: block; width: 100%; aspect-ratio: 9 / 16; object-fit: cover;
+  border-radius: 10px; background: var(--bg-alt); border: 1px solid var(--line);
+}
+.cards-item figcaption {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 8px; font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+}
+.cards-item figcaption a { color: var(--f1); }
+.cards-item figcaption a:hover { color: var(--ink); }
+
 /* ---------- vazio ---------- */
 .empty { padding: 40px 0; }
 .empty h1 { font-family: var(--display); font-weight: 600; font-size: 28px; margin: 6px 0 12px; }

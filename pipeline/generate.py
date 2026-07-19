@@ -60,6 +60,8 @@ import trafilatura
 import yaml
 from slugify import slugify
 
+import cards as cards_module
+
 # Sem isso, quando a saída não é um terminal (ex.: workflow do GitHub
 # Actions, ou saída redirecionada/pipe), o Python bufferiza stdout em
 # blocos grandes mas deixa stderr sem buffer — na prática, os
@@ -75,10 +77,12 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCES_FILE = ROOT / "pipeline" / "sources.yaml"
 SEEN_FILE = ROOT / "pipeline" / "seen.json"
 POSTS_DIR = ROOT / "site" / "content" / "posts"
+CARDS_CONTENT_DIR = ROOT / "site" / "content" / "cards"
 
 MODEL = os.environ.get("MODEL", "claude-haiku-4-5-20251001")
 FACTCHECK_MODEL = os.environ.get("FACTCHECK_MODEL", "claude-haiku-4-5-20251001")
 CLUSTER_MODEL = os.environ.get("CLUSTER_MODEL", "claude-haiku-4-5-20251001")
+CARDS_MODEL = os.environ.get("CARDS_MODEL", "claude-haiku-4-5-20251001")
 MAX_PER_FEED = int(os.environ.get("MAX_PER_FEED", "4"))
 MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
@@ -264,6 +268,46 @@ no mesmo formato do rascunho recebido:
   "categoria": "...",
   "tags": ["..."],
   "corpo_markdown": "..."
+}}"""
+
+
+CARDS_SYSTEM_PROMPT = f"""\
+Você é {AUTHOR_NAME}, editor do BRGrid, adaptando uma matéria já pronta pra
+uma sequência de "cards" de Stories (Instagram) — imagens verticais, uma
+frase de cada vez, que as pessoas passam o dedo pra ler rapidinho.
+
+Vai receber a matéria final (título, linha fina, corpo) em JSON. Decida
+quantos cards fazem sentido — ENTRE 1 E 5 — de acordo com o quanto a
+matéria realmente tem de conteúdo interessante:
+- Notícia simples/curta (pouco mais que um fato só): 1 ou 2 cards bastam.
+- Matéria rica em detalhes (vários fatos, contexto, resultado + reação
+  etc.): pode ir até 5. NÃO force 5 cards enchendo linguiça — cada card
+  tem que carregar uma ideia de verdade, não repetir a mesma coisa com
+  outras palavras.
+
+Regras de cada card:
+- Uma frase curta, ou no máximo duas bem curtas — pensado pra caber numa
+  tela de celular, sem parágrafo. Nada de explicação longa.
+- Baseie-se SÓ nos fatos que já estão na matéria recebida — não invente
+  nada novo, não adicione números/nomes que não estejam lá.
+- O primeiro card é o gancho principal (pode adaptar o próprio título da
+  matéria, deixando mais direto pro formato Stories).
+- Cards do meio (se houver) trazem outros fatos/detalhes que valem
+  destaque — um por card, sem repetir o gancho.
+- O card final fecha convidando a ler a matéria completa (o link/handle
+  do site já é adicionado automaticamente por fora — você só escreve a
+  frase de fechamento, tipo uma "deixa no ar").
+- Mantenha o tom irônico/bem-humorado de {AUTHOR_NAME}, mas adaptado ao
+  formato rápido de Stories: mais direto, menos elaborado que o corpo da
+  matéria completa.
+- IMPORTANTE (formatação do JSON): prefira aspas simples (‘assim’) pra
+  citação ou ênfase. Se usar aspas duplas dentro de um card, escape cada
+  uma como \" — aspas dupla sem escapar quebra o JSON e os cards são
+  perdidos (a matéria continua publicada normalmente, só sem cards).
+
+Responda APENAS com um objeto JSON válido (sem markdown, sem crases), no formato:
+{{
+  "cards": ["primeiro card", "segundo card", "... até 5"]
 }}"""
 
 
@@ -691,6 +735,31 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
     return parse_model_json(raw)
 
 
+def generate_card_texts(article: dict) -> list[str]:
+    """Pede ao modelo entre 1 e 5 frases curtas pra virarem cards de Stories
+    (ver CARDS_SYSTEM_PROMPT). Levanta exceção se a resposta vier vazia,
+    malformada ou fora do esperado — quem chama trata isso como não-fatal
+    (a matéria é publicada normalmente, só sem cards)."""
+    if DRY_RUN:
+        return [f"[TESTE] {article.get('titulo', 'Matéria de teste')}"]
+
+    user_content = json.dumps(
+        {
+            "titulo": article.get("titulo", ""),
+            "linha_fina": article.get("linha_fina", ""),
+            "categoria": article.get("categoria", ""),
+            "corpo_markdown": article.get("corpo_markdown", ""),
+        },
+        ensure_ascii=False,
+    )
+    raw = call_llm(CARDS_SYSTEM_PROMPT, user_content, 1024, CARDS_MODEL)
+    data = parse_model_json(raw)
+    cards = [str(c).strip() for c in data.get("cards", []) if str(c).strip()]
+    if not cards:
+        raise ValueError("resposta não trouxe nenhum card utilizável")
+    return cards[:5]
+
+
 # --------------------------------------------------------------------------
 # Imagens: variação por IA (Gemini "Nano Banana") a partir da imagem-fonte
 # --------------------------------------------------------------------------
@@ -711,6 +780,8 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
 
 GENERATED_IMAGES_DIR = ROOT / "site" / "static" / "images" / "ia"
 GENERATED_IMAGES_URL_PREFIX = "/images/ia"
+GENERATED_CARDS_DIR = ROOT / "site" / "static" / "images" / "cards"
+GENERATED_CARDS_URL_PREFIX = "/images/cards"
 
 # Prompt fixo pedido pelo dono do projeto para a variação de imagem.
 IMAGE_VARIATION_PROMPT = (
@@ -873,16 +944,26 @@ def toml_list(items) -> str:
     return "[" + ", ".join(f'"{str(i).replace(chr(34), "")}"' for i in items) + "]"
 
 
+def post_filename_base(article: dict, date: datetime) -> str:
+    """Nome de arquivo (sem extensão) usado tanto pro post quanto pra sua
+    página de cards — precisam ser IGUAIS pra que os permalinks de
+    site/content/posts e site/content/cards caiam no mesmo :year/:month/
+    :slug (ver [permalinks] em site/hugo.toml) e a página de cards fique
+    em <permalink-do-post>cards/."""
+    slug = slugify(article["titulo"])[:70] or "materia"
+    return f"{date:%Y-%m-%d}-{slug}"
+
+
 def write_post(
     article: dict,
     source_names: list[str],
     source_urls: list[str],
     date: datetime,
     image_info: dict | None = None,
+    has_cards: bool = False,
 ) -> Path:
-    slug = slugify(article["titulo"])[:70] or "materia"
-    filename = f"{date:%Y-%m-%d}-{slug}.md"
-    path = POSTS_DIR / filename
+    filename_base = post_filename_base(article, date)
+    path = POSTS_DIR / f"{filename_base}.md"
     image_info = image_info or {}
 
     def esc(s: str) -> str:
@@ -903,6 +984,7 @@ def write_post(
             f'image_credit_name = "{esc(image_info.get("credit_name", ""))}"',
             f'image_credit_url = "{esc(image_info.get("credit_url", ""))}"',
             f'image_provider = "{esc(image_info.get("provider", ""))}"',
+            f"has_cards = {str(has_cards).lower()}",
             "+++",
             "",
         ]
@@ -910,6 +992,53 @@ def write_post(
     body = article.get("corpo_markdown", "").strip()
     path.write_text(frontmatter + body + "\n", encoding="utf-8")
     return path
+
+
+def write_cards_page(filename_base: str, article: dict, date: datetime, image_urls: list[str]) -> Path:
+    """Grava site/content/cards/<mesmo-nome-do-post>.md — uma página
+    "irmã" do post, só com a lista de imagens dos cards. O permalink
+    dessa seção (ver site/hugo.toml) é o mesmo do post + 'cards/'."""
+    CARDS_CONTENT_DIR.mkdir(parents=True, exist_ok=True)
+    path = CARDS_CONTENT_DIR / f"{filename_base}.md"
+
+    def esc(s: str) -> str:
+        return str(s).replace('"', "'")
+
+    frontmatter = "\n".join(
+        [
+            "+++",
+            f'title = "{esc(article["titulo"])}"',
+            f"date = {date:%Y-%m-%dT%H:%M:%SZ}",
+            f"images = {toml_list(image_urls)}",
+            "+++",
+            "",
+        ]
+    )
+    path.write_text(frontmatter, encoding="utf-8")
+    return path
+
+
+def generate_and_render_cards(
+    article: dict, image_info: dict | None, filename_base: str, date: datetime
+) -> list[str]:
+    """Gera os textos dos cards (LLM) e renderiza as imagens (Pillow),
+    gravando a página irmã em site/content/cards/. Devolve a lista de URLs
+    das imagens geradas (vazia se algo falhar — ver call sites: isso NUNCA
+    deve impedir a matéria em si de ser publicada)."""
+    texts = generate_card_texts(article)
+
+    background_path = None
+    if image_info and image_info.get("url", "").startswith(GENERATED_IMAGES_URL_PREFIX):
+        candidate = ROOT / "site" / "static" / image_info["url"].lstrip("/")
+        if candidate.exists():
+            background_path = candidate
+
+    out_dir = GENERATED_CARDS_DIR / filename_base
+    category = article.get("categoria", ALLOWED_CATEGORIES[0])
+    saved_paths = cards_module.generate_card_images(texts, category, background_path, out_dir)
+    image_urls = [f"{GENERATED_CARDS_URL_PREFIX}/{filename_base}/{p.name}" for p in saved_paths]
+    write_cards_page(filename_base, article, date, image_urls)
+    return image_urls
 
 
 # --------------------------------------------------------------------------
@@ -968,6 +1097,9 @@ def main() -> int:
     n_enviados_imagem = 0
     n_imagem_gerada = 0
     n_imagem_ausente = 0
+    n_enviados_cards = 0
+    n_cards_gerados = 0
+    n_cards_falhou = 0
 
     created = 0
     grouped_ids: set[int] = set()
@@ -1067,7 +1199,21 @@ def main() -> int:
                 n_imagem_ausente += 1
                 print("    imagem: nenhuma (sem GEMINI_API_KEY, sem imagem na fonte, ou falha na API)")
 
-            write_post(article, source_names, links, publish_date, image_info)
+            filename_base = post_filename_base(article, publish_date)
+
+            n_enviados_cards += 1
+            print(f"    gerando cards de Stories ({active_text_model(CARDS_MODEL)})...")
+            card_urls: list[str] = []
+            try:
+                card_urls = generate_and_render_cards(article, image_info, filename_base, publish_date)
+            except Exception as exc:  # noqa: BLE001
+                n_cards_falhou += 1
+                print(f"    aviso: geração de cards falhou, publicando matéria sem cards ({exc})", file=sys.stderr)
+            if card_urls:
+                n_cards_gerados += 1
+                print(f"    cards: {len(card_urls)} gerado(s)")
+
+            write_post(article, source_names, links, publish_date, image_info, has_cards=bool(card_urls))
             created += 1
             print(f"    ✓ publicado: {article.get('titulo', '')[:70]}")
         except Exception as exc:  # noqa: BLE001
@@ -1098,6 +1244,9 @@ def main() -> int:
     print(f"Enviados para gerar imagem ({GEMINI_IMAGE_MODEL}): {n_enviados_imagem}")
     print(f"  imagem gerada com sucesso:                   {n_imagem_gerada}")
     print(f"  sem imagem (falha/sem chave/sem foto-fonte): {n_imagem_ausente}")
+    print(f"Enviados para gerar cards ({active_text_model(CARDS_MODEL)}): {n_enviados_cards}")
+    print(f"  cards gerados com sucesso:                   {n_cards_gerados}")
+    print(f"  falha na geração (publicado sem cards):      {n_cards_falhou}")
     print(f"Matérias publicadas:                   {created}")
     if DEEPSEEK_API_KEY:
         print(f"Chamadas de texto respondidas pelo DeepSeek: {LLM_CALL_STATS['deepseek_ok']}")

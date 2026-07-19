@@ -1,0 +1,35 @@
+{{ define "main" }}
+  {{ $postURL := strings.TrimSuffix "cards/" .RelPermalink }}
+  <article class="cards-page">
+    <div class="cards-head">
+      <span class="eyebrow">Cards para Stories</span>
+      <h1 class="cards-title">{{ .Title }}</h1>
+      <p class="cards-note">
+        Toque e segure (ou clique com o botão direito) em cada imagem pra
+        salvar, ou use o link "Baixar" — formato 1080×1920, pronto pro
+        Stories do Instagram.
+      </p>
+      <p class="meta">
+        <a href="{{ $postURL }}">← Ver a matéria completa</a>
+      </p>
+    </div>
+
+    {{ with .Params.images }}
+      <div class="cards-grid">
+        {{ range $i, $url := . }}
+          <figure class="cards-item">
+            <img src="{{ $url | relURL }}" alt="Card {{ add $i 1 }} de {{ len $.Params.images }}" loading="lazy" />
+            <figcaption>
+              <span>Card {{ add $i 1 }}/{{ len $.Params.images }}</span>
+              <a href="{{ $url | relURL }}" download>Baixar ↓</a>
+            </figcaption>
+          </figure>
+        {{ end }}
+      </div>
+    {{ else }}
+      <p class="empty-note">Nenhum card disponível pra essa matéria.</p>
+    {{ end }}
+
+    <p class="back"><a href="{{ $postURL }}">← Voltar à matéria</a></p>
+  </article>
+{{ end }}

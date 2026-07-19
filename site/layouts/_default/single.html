@@ -38,6 +38,10 @@
       </div>
     {{ end }}
 
+    {{ if .Params.has_cards }}
+      <p class="back"><a href="{{ .RelPermalink }}cards/">Ver cards para Stories →</a></p>
+    {{ end }}
+
     <p class="back"><a href="{{ "/" | relURL }}">← Voltar à capa</a></p>
   </article>
 {{ end }}

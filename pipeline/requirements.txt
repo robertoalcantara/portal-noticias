@@ -2,4 +2,5 @@ anthropic>=0.40
 feedparser>=6.0
 trafilatura>=1.12
 PyYAML>=6.0
+Pillow>=10.0
 python-slugify>=8.0

@@ -175,12 +175,40 @@ Secrets:
   <https://aistudio.google.com/apikey> (Google AI Studio). Sem essa chave,
   todas as matérias saem sem imagem.
 
+### Cards para Stories do Instagram (gerados por matéria)
+Depois que uma matéria é escrita, o pipeline chama `generate_and_render_cards()`
+(em `pipeline/generate.py`) que: (1) pede ao modelo de texto ativo (Claude ou
+DeepSeek, o que estiver configurado — env opcional `CARDS_MODEL`, padrão
+`claude-haiku-4-5-20251001`, ignorado se o DeepSeek estiver ativo) para
+resumir a matéria em **1 a 5 textos curtos** no mesmo tom do Bruno Bandeira,
+um por card; (2) renderiza cada texto como uma imagem 1080×1920 (formato
+Stories) com **Pillow puro** (`pipeline/cards.py`, sem navegador/headless
+nenhum) usando a própria imagem da matéria como fundo (ou o placeholder
+colorido por categoria, se a matéria não tiver imagem). As fontes usadas
+(Fraunces, Archivo Black, Barlow Condensed) estão em `pipeline/assets/fonts/`,
+todas licenciadas OFL (arquivos `OFL-*.txt` ao lado de cada uma).
+
+Isso roda **automaticamente para toda matéria nova**, sem intervenção manual.
+Se a geração dos cards falhar por qualquer motivo (resposta do modelo
+inválida, erro de renderização, etc.), o erro é só um aviso — a matéria é
+publicada normalmente, **sem** cards, em vez de falhar a rodada inteira.
+
+As imagens ficam em `site/static/images/cards/<slug-da-matéria>/1.png`...`N.png`
+e uma página em Hugo é gerada em `<url-da-matéria>/cards/` (mesmo slug,
+seção `site/content/cards/`, permalink alinhado via `[permalinks]` em
+`site/hugo.toml`) com a galeria pra visualizar/baixar cada card. Essa página
+tem `noindex` (não deve aparecer em buscadores — ver `head.html`) e só existe
+um link pra ela na matéria (`Ver cards para Stories →`) quando
+`has_cards = true` no frontmatter do post.
+
 ## Estrutura
 
 ```
 pipeline/
   sources.yaml        fontes: RSS ou sites sem feed (raspagem de listagem)
   generate.py          coleta, agrupa, gera e revisa as matérias
+  cards.py             renderiza os cards de Stories (Pillow, sem rede)
+  assets/fonts/        fontes usadas nos cards (OFL)
   requirements.txt    dependências Python
   seen.json           controle de matérias já publicadas (não apague)
 .github/workflows/
@@ -190,6 +218,8 @@ site/
   layouts/            templates (home tipo portal, cards com cor por categoria)
   static/css/         estilo
   content/posts/      matérias geradas (começa vazio)
+  content/cards/      páginas da galeria de cards (uma por matéria com cards)
+  static/images/cards/ imagens dos cards renderizados (PNG, 1080×1920)
 ```
 
 ## Como colocar no ar (passo a passo)
@@ -271,6 +301,7 @@ cd site && hugo server
 | Modelo de agrupamento/classificação | env `CLUSTER_MODEL` (padrão: `claude-haiku-4-5-20251001`) |
 | Usar só o DeepSeek em vez do Claude (sem fallback) | env `DEEPSEEK_API_KEY` (apague pra voltar ao Claude) |
 | Modelo do DeepSeek | env `DEEPSEEK_MODEL` (padrão: `deepseek-chat`) |
+| Modelo de geração dos textos dos cards de Stories | env `CARDS_MODEL` (padrão: `claude-haiku-4-5-20251001`, ignorado se DeepSeek ativo) |
 | Tom / regras do texto | `SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de agrupamento por tema | `CLUSTER_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de checagem de fatos | `FACTCHECK_SYSTEM_PROMPT` em `pipeline/generate.py` |

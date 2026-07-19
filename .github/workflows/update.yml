@@ -41,7 +41,7 @@ jobs:
         run: |
           git config user.name  "news-bot"
           git config user.email "news-bot@users.noreply.github.com"
-          git add site/content/posts pipeline/seen.json site/static/images/ia
+          git add site/content/posts site/content/cards pipeline/seen.json site/static/images/ia site/static/images/cards
           if git diff --cached --quiet; then
             echo "Nada novo para publicar."
           else
