@@ -899,9 +899,14 @@ def download_image_bytes(
     return data, content_type
 
 
-def generate_image_variation(image_bytes: bytes, mime_type: str) -> tuple[bytes, str] | None:
+def generate_image_variation(
+    image_bytes: bytes, mime_type: str
+) -> tuple[bytes, str, dict | None] | None:
     """Chama a API do Gemini (Nano Banana) para gerar uma variação da
-    imagem recebida. Devolve (bytes_da_imagem_gerada, mime_type) ou None."""
+    imagem recebida. Devolve (bytes_da_imagem_gerada, mime_type,
+    info_de_tokens) ou None. info_de_tokens é
+    {"prompt": int, "resposta": int, "total": int} quando a API devolve
+    usageMetadata, ou None se não vier."""
     if not GEMINI_API_KEY:
         return None
     url = (
@@ -948,13 +953,21 @@ def generate_image_variation(image_bytes: bytes, mime_type: str) -> tuple[bytes,
     except Exception as exc:  # noqa: BLE001
         print(f"    aviso: falha ao chamar a API de imagem do Gemini ({exc})", file=sys.stderr)
         return None
+    usage = data.get("usageMetadata") or {}
+    token_info = None
+    if usage:
+        token_info = {
+            "prompt": usage.get("promptTokenCount", 0),
+            "resposta": usage.get("candidatesTokenCount", 0),
+            "total": usage.get("totalTokenCount", 0),
+        }
     try:
         for candidate in data.get("candidates", []):
             for part in candidate.get("content", {}).get("parts", []):
                 inline = part.get("inlineData") or part.get("inline_data")
                 if inline and inline.get("data"):
                     out_mime = inline.get("mimeType") or inline.get("mime_type") or "image/png"
-                    return base64.b64decode(inline["data"]), out_mime
+                    return base64.b64decode(inline["data"]), out_mime, token_info
     except Exception as exc:  # noqa: BLE001
         print(f"    aviso: resposta inesperada da API de imagem do Gemini ({exc})", file=sys.stderr)
     return None
@@ -963,9 +976,13 @@ def generate_image_variation(image_bytes: bytes, mime_type: str) -> tuple[bytes,
 def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
     """Tenta, na ordem das fontes do grupo, gerar uma variação por IA da
     imagem já usada na matéria-fonte. Devolve um dict
-    {"url", "credit_name", "credit_url", "provider"} ou None se nenhuma
-    fonte do grupo render uma imagem utilizável — aí a matéria fica sem
-    imagem (o template usa o placeholder colorido por categoria)."""
+    {"url", "credit_name", "credit_url", "provider", "source_image_url",
+    "tokens"} ou None se nenhuma fonte do grupo render uma imagem
+    utilizável — aí a matéria fica sem imagem (o template usa o
+    placeholder colorido por categoria). "source_image_url" é a URL da
+    imagem ORIGINAL da matéria-fonte usada como base; "tokens" é
+    {"prompt", "resposta", "total"} devolvido pela API do Gemini, ou None
+    se a API não informar."""
     if DRY_RUN or not GEMINI_API_KEY:
         return None
 
@@ -992,7 +1009,7 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
         variation = generate_image_variation(image_bytes, mime_type)
         if not variation:
             continue
-        variation_bytes, out_mime = variation
+        variation_bytes, out_mime, token_info = variation
         ext = "png" if "png" in out_mime else "jpg"
         digest = hashlib.sha1(link.encode("utf-8")).hexdigest()[:16]
         filename = f"{digest}.{ext}"
@@ -1003,6 +1020,8 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
             "credit_name": "",
             "credit_url": "",
             "provider": "IA (variação da imagem da fonte)",
+            "source_image_url": image_url,
+            "tokens": token_info,
         }
     return None
 
@@ -1168,6 +1187,7 @@ def main() -> int:
     n_enviados_imagem = 0
     n_imagem_gerada = 0
     n_imagem_ausente = 0
+    n_imagem_tokens_total = 0
     n_enviados_cards = 0
     n_cards_gerados = 0
     n_cards_falhou = 0
@@ -1265,7 +1285,19 @@ def main() -> int:
             image_info = get_ai_variation_image(group_candidates)
             if image_info:
                 n_imagem_gerada += 1
+                tokens = image_info.get("tokens")
+                if tokens:
+                    n_imagem_tokens_total += tokens.get("total", 0)
+                    tokens_str = (
+                        f"prompt={tokens.get('prompt', 0)} "
+                        f"resposta={tokens.get('resposta', 0)} "
+                        f"total={tokens.get('total', 0)}"
+                    )
+                else:
+                    tokens_str = "não informado pela API"
                 print(f"    imagem: ok ({image_info.get('provider', '?')})")
+                print(f"      original usada: {image_info.get('source_image_url', '?')}")
+                print(f"      tokens (Gemini): {tokens_str}")
             else:
                 n_imagem_ausente += 1
                 print("    imagem: nenhuma (sem GEMINI_API_KEY, sem imagem na fonte, ou falha na API)")
@@ -1315,6 +1347,7 @@ def main() -> int:
     print(f"Enviados para gerar imagem ({GEMINI_IMAGE_MODEL}): {n_enviados_imagem}")
     print(f"  imagem gerada com sucesso:                   {n_imagem_gerada}")
     print(f"  sem imagem (falha/sem chave/sem foto-fonte): {n_imagem_ausente}")
+    print(f"  tokens (Gemini) usados na geração de imagem: {n_imagem_tokens_total}")
     print(f"Enviados para gerar cards ({active_text_model(CARDS_MODEL)}): {n_enviados_cards}")
     print(f"  cards gerados com sucesso:                   {n_cards_gerados}")
     print(f"  falha na geração (publicado sem cards):      {n_cards_falhou}")
