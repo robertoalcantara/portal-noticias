@@ -1,0 +1,24 @@
++++
+title = "Antonelli vence na Bélgica e abre 45 pontos: o novo xerife da F1?"
+date = 2026-07-19T16:43:44Z
+author = "Bruno Bandeira"
+summary = "Com uma vitória dominante em Spa, Kimi Antonelli mostra que a concorrência vai precisar de mais do que um Safety Car virtual para tirar o título de suas mãos."
+categories = ["F1"]
+tags = ["Antonelli", "Belgian GP", "Mercedes", "F1 2026"]
+sources = ["Motorsport.com", "Motorsport.com", "Motorsport.com", "The Race", "The Race", "Formula1.com", "Formula1.com", "Formula1.com", "Formula1.com", "ge Globo (F1)", "ge Globo (F1)", "ge Globo (F1)"]
+source_urls = ["https://www.motorsport.com/f1/news/bernie-collins-explains-key-factor-behind-kimi-antonellis-f1-belgian-gp-win/10840272/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=www", "https://www.motorsport.com/f1/news/charles-leclerc-kept-kimi-antonelli-honest-in-belgian-gp-says-naomi-schiff/10840256/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=www", "https://www.motorsport.com/f1/news/f1-belgian-gp-race-report-10840197/10840197/?utm_source=RSS&utm_medium=referral&utm_campaign=RSS-ALL&utm_term=News&utm_content=www", "https://www.the-race.com/formula-1/winners-and-losers-from-the-2026-belgian-gp/", "https://www.the-race.com/formula-1/every-mercedes-powered-car-had-issue-in-belgian-gp/", "https://www.formula1.com/en/latest/article/i-gave-it-everything-i-had-verstappen-dissects-his-unlucky-drive-to-p3-in-belgium.55UOUoeGyIDMhrxkPrWNIc", "https://www.formula1.com/en/latest/article/sometimes-our-best-is-not-good-enough-wolff-reflects-on-bittersweet-belgian-gp-for-mercedes.GX6VXs6Ov95KIaDxjnnPi", "https://www.formula1.com/en/latest/article/i-believed-until-the-end-leclerc-shares-disappointment-of-missing-out-on-belgium-win.7KwBUgBh3HeWolxfbXr2vY", "https://www.formula1.com/en/latest/article/got-to-take-every-opportunity-antonelli-reflects-on-title-battle-after-victory-in-belgian-gp.35LA7q5eMj9Tjp7vQwW0G0", "https://ge.globo.com/motor/formula-1/noticia/2026/07/19/bortoleto-cita-spa-como-melhor-corrida-pela-audi-e-avisa-vamos-brigar-por-vitorias.ghtml", "https://ge.globo.com/motor/formula-1/noticia/2026/07/19/antonelli-iguala-patrese-como-segundo-italiano-com-mais-vitorias-na-f1.ghtml", "https://ge.globo.com/motor/formula-1/noticia/2026/07/19/gp-da-belgica-antonelli-segura-leclerc-e-volta-a-vencer-bortoleto-pontua-em-8o.ghtml"]
+image = "/images/ia/3166c9c507c37d01.png"
+image_credit_name = ""
+image_credit_url = ""
+image_provider = "IA (variação da imagem da fonte)"
+has_cards = true
++++
+Kimi Antonelli está com tanta confiança que até quando a Ferrari tenta dar um presente para Charles Leclerc (na forma de um Safety Car virtual que o colocou na liderança), o italiano dobra a aposta e vence com a mesma naturalidade de quem pede um café. Em Spa, o piloto da Mercedes conquistou sua sexta vitória na temporada e abriu 45 pontos de vantagem no campeonato. Para quem duvidava, a mensagem está clara: o moleque cresceu.
+
+Enquanto Antonelli sorria, seu companheiro de equipe George Russell amargava um DNF logo na primeira curva, após um toque com Lewis Hamilton. Toto Wolff, chefe da Mercedes, foi cirúrgico: o problema foi 50% motor e 50% piloto. Ou seja, Russell não só perdeu a corrida como provavelmente perderia pontos para Antonelli de qualquer jeito. Coitado, até a batida foi um 'tiro no pé' que evitou uma derrota por margem menor.
+
+Falando em Ferrari, Leclerc fez o que pôde: largou bem, passou Verstappen e até liderou por alguns instantes graças ao VSC. Mas a falta de velocidade de reta e a consistência de Antonelli fizeram com que o segundo lugar fosse o máximo possível. Já Hamilton… bem, o heptacampeão levou uma punição de cinco segundos pelo incidente com Russell, e ainda quase atropelou um mecânico no pit stop porque esqueceram de ajustar o ângulo do aerofólio. Resultado: quarto lugar e a sensação de que a Ferrari ainda tem muito o que aprender.
+
+Entre os 'vencedores' do fim de semana, destaque para Isack Hadjar, que largou em último e chegou em sexto, mostrando que a Red Bull tem um futuro brilhante pela frente. Gabriel Bortoleto também fez bonito: o brasileiro da Audi somou mais pontos (oitavo) e já coloca a equipe na briga com a Williams. E Franco Colapinto, da Alpine, deu um show ao ultrapassar Gasly e Lawson ao mesmo tempo – uma manobra digna de quem não se contenta com 'apenas' um décimo lugar.
+
+Do lado dos 'perdedores', além de Russell e Hamilton, Liam Lawson viveu um domingo para esquecer. Com um carro sem as atualizações do companheiro Arvid Lindblad, o neozelandês foi engolido pelos Alpines e terminou em 12º, reclamando que estavam 'lutando uma batalha perdida'. A boa notícia é que a Hungria está logo ali, e com novas peças, quem sabe a sorte não muda? Na F1, a diferença entre ser vencedor ou perdedor muitas vezes é de milésimos… ou de uma atualização bem-vinda.
