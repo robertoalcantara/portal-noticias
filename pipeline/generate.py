@@ -952,6 +952,18 @@ def _call_deepseek(system: str, user_content: str, max_tokens: int) -> str:
         # optimizing"). Não tem workaround do nosso lado além de deixar subir
         # como falha — quem chama já trata isso como não-fatal.
         raise RuntimeError(f"resposta vazia (finish_reason={choice.get('finish_reason')})")
+    if choice.get("finish_reason") == "length":
+        # Resposta cortada por bater no limite de max_tokens NO MEIO do
+        # JSON (normalmente no meio de corpo_markdown, por ser o campo mais
+        # longo). Sem essa checagem, parse_model_json ainda consegue "salvar"
+        # um objeto via _lenient_json_repair — só que com o corpo cortado no
+        # meio de uma frase, e isso ia direto pro ar sem ninguém perceber.
+        # Melhor falhar aqui (não-fatal pra quem chama) do que publicar
+        # matéria truncada.
+        raise RuntimeError(
+            "resposta cortada por limite de max_tokens (finish_reason=length) "
+            "— provável corpo_markdown incompleto"
+        )
     return content
 
 
@@ -965,6 +977,18 @@ def _call_anthropic(system: str, user_content: str, max_tokens: int, model: str)
         system=system,
         messages=[{"role": "user", "content": user_content}],
     )
+    if message.stop_reason == "max_tokens":
+        # Resposta cortada por bater no limite de max_tokens NO MEIO do
+        # JSON (normalmente no meio de corpo_markdown, por ser o campo mais
+        # longo). Sem essa checagem, parse_model_json ainda consegue "salvar"
+        # um objeto via _lenient_json_repair — só que com o corpo cortado no
+        # meio de uma frase, e isso ia direto pro ar sem ninguém perceber.
+        # Melhor falhar aqui (não-fatal pra quem chama) do que publicar
+        # matéria truncada.
+        raise RuntimeError(
+            "resposta cortada por limite de max_tokens (stop_reason=max_tokens) "
+            "— provável corpo_markdown incompleto"
+        )
     return "".join(block.text for block in message.content if block.type == "text")
 
 
@@ -1053,7 +1077,7 @@ def rewrite_with_claude(
         parts.append(f"{header}\n{text[:MAX_SOURCE_CHARS]}")
     user_content = "\n\n---\n\n".join(parts)
 
-    raw = call_llm(build_write_system_prompt(writer), user_content, 4096, MODEL)
+    raw = call_llm(build_write_system_prompt(writer), user_content, 8192, MODEL)
     return parse_model_json(raw)
 
 
@@ -1076,7 +1100,7 @@ def factcheck_with_claude(
         f"TEXTOS-FONTE:\n{sources_text}\n\n"
         f"RASCUNHO (JSON):\n{json.dumps(article, ensure_ascii=False)}"
     )
-    raw = call_llm(build_factcheck_system_prompt(writer), user_content, 4096, FACTCHECK_MODEL)
+    raw = call_llm(build_factcheck_system_prompt(writer), user_content, 8192, FACTCHECK_MODEL)
     return parse_model_json(raw)
 
 

@@ -78,6 +78,19 @@ o tempo todo.
   já causei perda de ~29 manchetes reais fazendo isso errado numa versão
   anterior). Se mexer no tratamento de erro de `cluster_and_classify`,
   preserve esse comportamento.
+- **Matéria publicada cortada no meio de uma frase** já aconteceu:
+  `rewrite_with_claude`/`factcheck_with_claude` bateram no limite de
+  `max_tokens` (era 4096) no meio do JSON, e `_lenient_json_repair`
+  (pensado pra aspas internas não escapadas, não pra truncamento de
+  verdade) "salvava" um objeto mesmo assim, com `corpo_markdown`
+  incompleto — publicado sem ninguém perceber. Duas correções: (1)
+  `_call_anthropic`/`_call_deepseek` agora levantam erro se
+  `stop_reason`/`finish_reason` indicar corte por limite de tokens
+  (`max_tokens`/`length`), em vez de deixar seguir pro parser tolerante;
+  (2) `max_tokens` de escrever/revisar fatos subiu pra 8192, com mais
+  folga. Se voltar a acontecer, o log mostra
+  "resposta cortada por limite de max_tokens" em vez de publicar
+  silenciosamente.
 - **Antes de adicionar uma fonte `type: list` (sem RSS), confira o
   `robots.txt` do domínio e avise o dono do projeto se ele proibir acesso
   automatizado.** Isso não bloqueia a fonte automaticamente — é uma decisão
