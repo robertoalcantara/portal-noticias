@@ -33,6 +33,14 @@ Variáveis de ambiente:
   RECENT_CONTEXT_MAX_ITEMS    (opcional, padrão: 60 — teto de matérias
                      recentes incluídas nesse contexto, pra não estourar o
                      tamanho do prompt em rodadas com muito histórico)
+  MANUAL_URLS        (opcional — modo manual: um ou mais links de
+                     matéria-fonte, separados por vírgula ou quebra de
+                     linha. Quando definida, o script IGNORA sources.yaml
+                     e o funil automático inteiro (coleta/agrupamento) e
+                     processa só esses links como fontes de UMA única
+                     matéria — útil pra publicar manualmente uma notícia
+                     específica a partir do link, sem esperar o RSS/
+                     listagem pegar. Ver run_manual_mode().)
   DRY_RUN            (opcional, "1" para não chamar a API — usa texto de teste)
   GEMINI_API_KEY      (obrigatória para gerar imagem — sem ela, ou se a
                        matéria-fonte não tiver imagem, ou se a chamada
@@ -71,7 +79,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from html import unescape as html_unescape
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import feedparser
 import trafilatura
@@ -1586,8 +1594,284 @@ def generate_and_render_cards(
 # main
 # --------------------------------------------------------------------------
 
+def _new_run_stats() -> dict:
+    """Contadores mutáveis de uma rodada (funil automático OU modo manual),
+    preenchidos por process_group(). Compartilhado entre todas as chamadas
+    de process_group() numa mesma rodada, pra acumular os totais que saem
+    no resumo verboso no fim (ver main()/run_manual_mode())."""
+    return {
+        "n_sem_texto_fonte": 0,
+        "n_enviados_escrita": 0,
+        "n_descartados_pos_escrita": 0,
+        "n_enviados_factcheck": 0,
+        "n_factcheck_falhou": 0,
+        "n_descartados_pos_factcheck": 0,
+        "n_enviados_imagem": 0,
+        "n_imagem_gerada": 0,
+        "n_imagem_ausente": 0,
+        "n_imagem_tokens_total": 0,
+        "n_enviados_cards": 0,
+        "n_cards_gerados": 0,
+        "n_cards_falhou": 0,
+        "writer_usage": {w.key: 0 for w in WRITER_PROFILES},
+        "published_titles": [],
+        "created": 0,
+    }
+
+
+def process_group(group_candidates: list[dict], titles_preview: str, stats: dict) -> None:
+    """Processa um grupo de candidatos (uma ou mais fontes do MESMO fato)
+    até publicar (ou descartar) a matéria: escreve, revisa fatos, gera
+    imagem, gera cards e grava o post. Mutação em `stats` (ver
+    _new_run_stats()) igual ao que o loop de main() fazia inline antes
+    dessa função existir — extraído pra ser reaproveitado tanto pelo funil
+    automático (rodada normal, um grupo por vez dentro do `for group in
+    groups`) quanto pelo modo manual (run_manual_mode(), um único grupo
+    feito a partir de link(s) informados à mão via MANUAL_URLS).
+
+    Não marca links como vistos — isso é responsabilidade de quem chama
+    (no finally do laço, ou em run_manual_mode), porque só quem chama sabe
+    se está lidando com `seen.json` do funil automático ou não."""
+    try:
+        source_blocks: list[tuple[str, str, str | None]] = []
+        for c in group_candidates[:4]:
+            if "_full_text" in c:
+                text = c["_full_text"]
+            else:
+                downloaded = trafilatura.fetch_url(c["link"])
+                c["_source_html"] = downloaded
+                text = None
+                if downloaded:
+                    text = trafilatura.extract(downloaded, include_comments=False)
+                if not text or len(text) < 120:
+                    text = c.get("summary", "")
+            if text and len(text) >= 80:
+                source_blocks.append((c["name"], text, c.get("extra_instructions")))
+
+        print(f"    textos-fonte utilizáveis: {len(source_blocks)}/{min(len(group_candidates), 4)}")
+
+        if not source_blocks:
+            stats["n_sem_texto_fonte"] += 1
+            print("    pulei: nenhum texto-fonte utilizável")
+            return
+
+        writer = select_writer(len(source_blocks))
+        stats["writer_usage"][writer.key] += 1
+        stats["n_enviados_escrita"] += 1
+        print(
+            f"    escritor escolhido: {writer.author_name} "
+            f"({len(source_blocks)} fonte(s) utilizável(is), mínimo do escritor: {writer.min_sources})"
+        )
+        print(f"    escrevendo matéria ({active_text_model(MODEL)})...")
+        article = rewrite_with_claude(source_blocks, writer)
+
+        if is_insufficient_content(article):
+            # O editor (rewrite_with_claude) sinalizou que os
+            # textos-fonte não davam pra uma matéria de verdade. Não
+            # publica, e — importante — não chama factcheck nem gera
+            # imagem por IA: essa checagem tem que vir ANTES de
+            # qualquer chamada cara, senão fica gastando API à toa com
+            # algo que nunca vai virar post.
+            stats["n_descartados_pos_escrita"] += 1
+            print(f"    descartado (conteúdo insuficiente): {titles_preview[:70]}")
+            return
+
+        stats["n_enviados_factcheck"] += 1
+        print(f"    revisando fatos ({active_text_model(FACTCHECK_MODEL)})...")
+        try:
+            article = factcheck_with_claude(article, source_blocks, writer)
+        except Exception as exc:  # noqa: BLE001
+            stats["n_factcheck_falhou"] += 1
+            print(f"    aviso: revisão de fatos falhou, publicando rascunho ({exc})", file=sys.stderr)
+
+        if is_insufficient_content(article):
+            # A revisão de fatos (a ÚLTIMA etapa de verificação antes de
+            # publicar) pode ter removido tanta coisa não-verificável do
+            # rascunho que não sobrou matéria de verdade. Mesma regra:
+            # descarta ANTES de gerar imagem — nunca gera imagem por IA
+            # para uma matéria que não vai ser publicada.
+            stats["n_descartados_pos_factcheck"] += 1
+            print(f"    descartado (conteúdo insuficiente após revisão de fatos): {titles_preview[:70]}")
+            return
+
+        source_names = [c["name"] for c in group_candidates]
+        links = [c["link"] for c in group_candidates]
+        publish_date = max(c["date"] for c in group_candidates)
+
+        stats["n_enviados_imagem"] += 1
+        print(f"    gerando imagem ({GEMINI_IMAGE_MODEL})...")
+        image_info = get_ai_variation_image(group_candidates)
+        if image_info:
+            stats["n_imagem_gerada"] += 1
+            tokens = image_info.get("tokens")
+            if tokens:
+                stats["n_imagem_tokens_total"] += tokens.get("total", 0)
+                tokens_str = (
+                    f"prompt={tokens.get('prompt', 0)} "
+                    f"resposta={tokens.get('resposta', 0)} "
+                    f"total={tokens.get('total', 0)}"
+                )
+            else:
+                tokens_str = "não informado pela API"
+            print(f"    imagem: ok ({image_info.get('provider', '?')})")
+            print(f"      original usada: {image_info.get('source_image_url', '?')}")
+            print(f"      tokens (Gemini): {tokens_str}")
+        else:
+            stats["n_imagem_ausente"] += 1
+            print("    imagem: nenhuma (sem GEMINI_API_KEY, sem imagem na fonte, ou falha na API)")
+
+        filename_base = post_filename_base(article, publish_date)
+
+        stats["n_enviados_cards"] += 1
+        print(f"    gerando cards de Stories ({active_text_model(CARDS_MODEL)})...")
+        card_urls: list[str] = []
+        try:
+            card_urls = generate_and_render_cards(
+                article, image_info, filename_base, publish_date, writer
+            )
+        except Exception as exc:  # noqa: BLE001
+            stats["n_cards_falhou"] += 1
+            print(f"    aviso: geração de cards falhou, publicando matéria sem cards ({exc})", file=sys.stderr)
+        if card_urls:
+            stats["n_cards_gerados"] += 1
+            print(f"    cards: {len(card_urls)} gerado(s)")
+
+        write_post(
+            article,
+            source_names,
+            links,
+            publish_date,
+            image_info,
+            has_cards=bool(card_urls),
+            author_name=writer.author_name,
+        )
+        stats["created"] += 1
+        stats["published_titles"].append(article.get('titulo', ''))
+        print(f"    ✓ publicado: {article.get('titulo', '')[:70]}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"    erro ao gerar/gravar: {exc}", file=sys.stderr)
+
+
+def build_manual_candidate(url: str) -> dict | None:
+    """Baixa e extrai o texto de UM link informado manualmente (modo
+    manual, ver run_manual_mode()/MANUAL_URLS), no mesmo formato de
+    candidato usado pelo funil automático. Reaproveita a mesma lógica de
+    extração de collect_list_candidates (trafilatura.bare_extraction,
+    tratando os dois formatos de retorno — dict ou objeto Document), mas
+    pra um único link já escolhido manualmente: não passa pela página de
+    listagem, nem pelo filtro de idade da notícia, nem por `seen.json`
+    (o link foi escolhido de propósito, mesmo que já tenha aparecido
+    antes numa rodada automática)."""
+    try:
+        article_html = trafilatura.fetch_url(url)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    erro ao baixar {url} ({exc})", file=sys.stderr)
+        return None
+    if not article_html:
+        print(f"    não consegui baixar {url}", file=sys.stderr)
+        return None
+    try:
+        data = trafilatura.bare_extraction(article_html, with_metadata=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"    erro ao extrair texto de {url} ({exc})", file=sys.stderr)
+        return None
+    if not data:
+        print(f"    não consegui extrair texto de {url}", file=sys.stderr)
+        return None
+    # trafilatura pode devolver um dict OU um objeto Document, dependendo
+    # da versão/parâmetros — mesmo tratamento de collect_list_candidates.
+    if isinstance(data, dict):
+        text = data.get("text")
+        title = data.get("title")
+        raw_date = data.get("date")
+        sitename = data.get("sitename")
+    else:
+        text = getattr(data, "text", None)
+        title = getattr(data, "title", None)
+        raw_date = getattr(data, "date", None)
+        sitename = getattr(data, "sitename", None)
+    if not text or len(text) < 120:
+        print(f"    texto extraído de {url} é curto demais pra virar matéria", file=sys.stderr)
+        return None
+    title = title or url
+    name = sitename or urlparse(url).netloc.replace("www.", "")
+    date = datetime.now(timezone.utc)
+    if raw_date:
+        try:
+            date = datetime.fromisoformat(str(raw_date)).replace(tzinfo=timezone.utc)
+        except Exception:  # noqa: BLE001
+            pass
+    return {
+        "name": name,
+        "extra_instructions": None,
+        "title": title,
+        "link": url,
+        "summary": text[:500],
+        "date": date,
+        "_full_text": text,
+        "_source_html": article_html,
+    }
+
+
+def run_manual_mode(urls: list[str]) -> int:
+    """Modo manual (env MANUAL_URLS): recebe um ou mais links de
+    matéria-fonte já escolhidos por uma pessoa, e produz UMA matéria a
+    partir deles — mesmo funil de escrita/revisão/imagem/cards de sempre
+    (process_group), só que pulando coleta (sources.yaml) e agrupamento/
+    classificação por LLM (cluster_and_classify), já que não há o que
+    agrupar ou classificar por escopo: a pessoa já decidiu que esse
+    conteúdo deve virar matéria. Os links processados são marcados em
+    `seen.json` no final, pra o funil automático não tentar publicar a
+    mesma notícia de novo depois."""
+    print(f"Modo manual: {len(urls)} link(s) informado(s) via MANUAL_URLS")
+    seen = load_seen()
+
+    group_candidates: list[dict] = []
+    for url in urls:
+        print(f"\n  baixando e extraindo: {url}")
+        candidate = build_manual_candidate(url)
+        if candidate is None:
+            print("    pulei (falha ao baixar/extrair texto utilizável)", file=sys.stderr)
+            continue
+        print(f"    ok: fonte=\"{candidate['name']}\" título-fonte=\"{candidate['title'][:70]}\"")
+        group_candidates.append(candidate)
+
+    if not group_candidates:
+        print("\nNenhum dos links informados pôde ser processado. Concluído (nada publicado).", file=sys.stderr)
+        return 1
+
+    links = [c["link"] for c in group_candidates]
+    titles_preview = " | ".join(c["title"][:50] for c in group_candidates)
+    print(f"\n  + [manual] {titles_preview}")
+    print(f"    fontes no grupo: {len(group_candidates)}")
+
+    stats = _new_run_stats()
+    try:
+        process_group(group_candidates, titles_preview, stats)
+    finally:
+        for link in links:
+            seen.add(link)
+        save_seen(seen)
+
+    print("\n" + "=" * 60)
+    if stats["created"] > 0:
+        print(f"✓ Matéria publicada: {stats['published_titles'][0]}")
+        print("=" * 60)
+        return 0
+
+    print("Não foi possível publicar uma matéria a partir do(s) link(s) informado(s).", file=sys.stderr)
+    print("=" * 60)
+    return 1
+
+
 def main() -> int:
     POSTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    manual_urls_raw = os.environ.get("MANUAL_URLS", "").strip()
+    if manual_urls_raw:
+        urls = [u.strip() for u in re.split(r"[\n,]+", manual_urls_raw) if u.strip()]
+        return run_manual_mode(urls)
+
     config = yaml.safe_load(SOURCES_FILE.read_text(encoding="utf-8"))
     feeds = config.get("feeds", [])
     seen = load_seen()
@@ -1631,30 +1915,11 @@ def main() -> int:
         # tentadas de novo na próxima rodada em vez de se perderem.
         return 1
 
-    # Contadores para o resumo verboso no fim da rodada — cada um marca
-    # quantos candidatos/grupos chegaram (ou não) em cada etapa do funil:
-    # agregação → escrita → revisão de fatos → geração de imagem → post.
     n_groups = len(groups)
     n_sem_ids = 0
     n_fora_de_escopo = 0
-    n_sem_texto_fonte = 0
-    n_enviados_escrita = 0
-    n_descartados_pos_escrita = 0
-    n_enviados_factcheck = 0
-    n_factcheck_falhou = 0
-    n_descartados_pos_factcheck = 0
-    n_enviados_imagem = 0
-    n_imagem_gerada = 0
-    n_imagem_ausente = 0
-    n_imagem_tokens_total = 0
-    n_enviados_cards = 0
-    n_cards_gerados = 0
-    n_cards_falhou = 0
-    writer_usage: dict[str, int] = {w.key: 0 for w in WRITER_PROFILES}
-    published_titles: list[str] = []
-
-    created = 0
     grouped_ids: set[int] = set()
+    stats = _new_run_stats()
 
     print(f"\nAgregação: {n_groups} grupo(s) formado(s) a partir de {len(candidates)} manchete(s)")
 
@@ -1681,124 +1946,7 @@ def main() -> int:
         print(f"    fontes no grupo: {len(group_candidates)}")
 
         try:
-            source_blocks: list[tuple[str, str, str | None]] = []
-            for c in group_candidates[:4]:
-                if "_full_text" in c:
-                    text = c["_full_text"]
-                else:
-                    downloaded = trafilatura.fetch_url(c["link"])
-                    c["_source_html"] = downloaded
-                    text = None
-                    if downloaded:
-                        text = trafilatura.extract(downloaded, include_comments=False)
-                    if not text or len(text) < 120:
-                        text = c.get("summary", "")
-                if text and len(text) >= 80:
-                    source_blocks.append((c["name"], text, c.get("extra_instructions")))
-
-            print(f"    textos-fonte utilizáveis: {len(source_blocks)}/{min(len(group_candidates), 4)}")
-
-            if not source_blocks:
-                n_sem_texto_fonte += 1
-                print("    pulei: nenhum texto-fonte utilizável")
-                for link in links:
-                    seen.add(link)
-                continue
-
-            writer = select_writer(len(source_blocks))
-            writer_usage[writer.key] += 1
-            n_enviados_escrita += 1
-            print(
-                f"    escritor escolhido: {writer.author_name} "
-                f"({len(source_blocks)} fonte(s) utilizável(is), mínimo do escritor: {writer.min_sources})"
-            )
-            print(f"    escrevendo matéria ({active_text_model(MODEL)})...")
-            article = rewrite_with_claude(source_blocks, writer)
-
-            if is_insufficient_content(article):
-                # O editor (rewrite_with_claude) sinalizou que os
-                # textos-fonte não davam pra uma matéria de verdade. Não
-                # publica, e — importante — não chama factcheck nem gera
-                # imagem por IA: essa checagem tem que vir ANTES de
-                # qualquer chamada cara, senão fica gastando API à toa com
-                # algo que nunca vai virar post.
-                n_descartados_pos_escrita += 1
-                print(f"    descartado (conteúdo insuficiente): {titles_preview[:70]}")
-                continue
-
-            n_enviados_factcheck += 1
-            print(f"    revisando fatos ({active_text_model(FACTCHECK_MODEL)})...")
-            try:
-                article = factcheck_with_claude(article, source_blocks, writer)
-            except Exception as exc:  # noqa: BLE001
-                n_factcheck_falhou += 1
-                print(f"    aviso: revisão de fatos falhou, publicando rascunho ({exc})", file=sys.stderr)
-
-            if is_insufficient_content(article):
-                # A revisão de fatos (a ÚLTIMA etapa de verificação antes de
-                # publicar) pode ter removido tanta coisa não-verificável do
-                # rascunho que não sobrou matéria de verdade. Mesma regra:
-                # descarta ANTES de gerar imagem — nunca gera imagem por IA
-                # para uma matéria que não vai ser publicada.
-                n_descartados_pos_factcheck += 1
-                print(f"    descartado (conteúdo insuficiente após revisão de fatos): {titles_preview[:70]}")
-                continue
-
-            source_names = [c["name"] for c in group_candidates]
-            publish_date = max(c["date"] for c in group_candidates)
-
-            n_enviados_imagem += 1
-            print(f"    gerando imagem ({GEMINI_IMAGE_MODEL})...")
-            image_info = get_ai_variation_image(group_candidates)
-            if image_info:
-                n_imagem_gerada += 1
-                tokens = image_info.get("tokens")
-                if tokens:
-                    n_imagem_tokens_total += tokens.get("total", 0)
-                    tokens_str = (
-                        f"prompt={tokens.get('prompt', 0)} "
-                        f"resposta={tokens.get('resposta', 0)} "
-                        f"total={tokens.get('total', 0)}"
-                    )
-                else:
-                    tokens_str = "não informado pela API"
-                print(f"    imagem: ok ({image_info.get('provider', '?')})")
-                print(f"      original usada: {image_info.get('source_image_url', '?')}")
-                print(f"      tokens (Gemini): {tokens_str}")
-            else:
-                n_imagem_ausente += 1
-                print("    imagem: nenhuma (sem GEMINI_API_KEY, sem imagem na fonte, ou falha na API)")
-
-            filename_base = post_filename_base(article, publish_date)
-
-            n_enviados_cards += 1
-            print(f"    gerando cards de Stories ({active_text_model(CARDS_MODEL)})...")
-            card_urls: list[str] = []
-            try:
-                card_urls = generate_and_render_cards(
-                    article, image_info, filename_base, publish_date, writer
-                )
-            except Exception as exc:  # noqa: BLE001
-                n_cards_falhou += 1
-                print(f"    aviso: geração de cards falhou, publicando matéria sem cards ({exc})", file=sys.stderr)
-            if card_urls:
-                n_cards_gerados += 1
-                print(f"    cards: {len(card_urls)} gerado(s)")
-
-            write_post(
-                article,
-                source_names,
-                links,
-                publish_date,
-                image_info,
-                has_cards=bool(card_urls),
-                author_name=writer.author_name,
-            )
-            created += 1
-            published_titles.append(article.get('titulo', ''))
-            print(f"    ✓ publicado: {article.get('titulo', '')[:70]}")
-        except Exception as exc:  # noqa: BLE001
-            print(f"    erro ao gerar/gravar: {exc}", file=sys.stderr)
+            process_group(group_candidates, titles_preview, stats)
         finally:
             for link in links:
                 seen.add(link)
@@ -1816,33 +1964,33 @@ def main() -> int:
     print(f"Manchetes coletadas (2ª fase):        {len(candidates)}")
     print(f"Grupos formados na agregação:          {n_groups}"
           f" (sem ids: {n_sem_ids}, fora do escopo: {n_fora_de_escopo})")
-    print(f"Grupos sem texto-fonte (pulados):      {n_sem_texto_fonte}")
-    print(f"Enviados para escrita ({active_text_model(MODEL)}):  {n_enviados_escrita}")
-    print(f"  descartados após escrita (insuficiente):     {n_descartados_pos_escrita}")
-    print(f"Enviados para revisão de fatos ({active_text_model(FACTCHECK_MODEL)}): {n_enviados_factcheck}")
-    print(f"  falhas na chamada (publicado sem revisão):   {n_factcheck_falhou}")
-    print(f"  descartados após revisão (insuficiente):     {n_descartados_pos_factcheck}")
-    print(f"Enviados para gerar imagem ({GEMINI_IMAGE_MODEL}): {n_enviados_imagem}")
-    print(f"  imagem gerada com sucesso:                   {n_imagem_gerada}")
-    print(f"  sem imagem (falha/sem chave/sem foto-fonte): {n_imagem_ausente}")
-    print(f"  tokens (Gemini) usados na geração de imagem: {n_imagem_tokens_total}")
-    print(f"Enviados para gerar cards ({active_text_model(CARDS_MODEL)}): {n_enviados_cards}")
-    print(f"  cards gerados com sucesso:                   {n_cards_gerados}")
-    print(f"  falha na geração (publicado sem cards):      {n_cards_falhou}")
+    print(f"Grupos sem texto-fonte (pulados):      {stats['n_sem_texto_fonte']}")
+    print(f"Enviados para escrita ({active_text_model(MODEL)}):  {stats['n_enviados_escrita']}")
+    print(f"  descartados após escrita (insuficiente):     {stats['n_descartados_pos_escrita']}")
+    print(f"Enviados para revisão de fatos ({active_text_model(FACTCHECK_MODEL)}): {stats['n_enviados_factcheck']}")
+    print(f"  falhas na chamada (publicado sem revisão):   {stats['n_factcheck_falhou']}")
+    print(f"  descartados após revisão (insuficiente):     {stats['n_descartados_pos_factcheck']}")
+    print(f"Enviados para gerar imagem ({GEMINI_IMAGE_MODEL}): {stats['n_enviados_imagem']}")
+    print(f"  imagem gerada com sucesso:                   {stats['n_imagem_gerada']}")
+    print(f"  sem imagem (falha/sem chave/sem foto-fonte): {stats['n_imagem_ausente']}")
+    print(f"  tokens (Gemini) usados na geração de imagem: {stats['n_imagem_tokens_total']}")
+    print(f"Enviados para gerar cards ({active_text_model(CARDS_MODEL)}): {stats['n_enviados_cards']}")
+    print(f"  cards gerados com sucesso:                   {stats['n_cards_gerados']}")
+    print(f"  falha na geração (publicado sem cards):      {stats['n_cards_falhou']}")
     print("Escritor escolhido por matéria:")
     for w in WRITER_PROFILES:
-        print(f"  {w.author_name} (min. {w.min_sources} fonte(s)): {writer_usage[w.key]}")
-    print(f"Matérias publicadas:                   {created}")
-    if published_titles:
+        print(f"  {w.author_name} (min. {w.min_sources} fonte(s)): {stats['writer_usage'][w.key]}")
+    print(f"Matérias publicadas:                   {stats['created']}")
+    if stats["published_titles"]:
         print("Títulos publicados nesta rodada:")
-        for titulo in published_titles:
+        for titulo in stats["published_titles"]:
             print(f"  - {titulo}")
     if DEEPSEEK_API_KEY:
         print(f"Chamadas de texto respondidas pelo DeepSeek: {LLM_CALL_STATS['deepseek_ok']}")
     print(f"seen.json: {seen_antes} antigo(s) + {seen_depois - seen_antes} novo(s)"
           f" marcado(s) nesta rodada = {seen_depois} no total")
     print("=" * 60)
-    print(f"\nConcluído: {created} matéria(s) nova(s).")
+    print(f"\nConcluído: {stats['created']} matéria(s) nova(s).")
     return 0
 
 

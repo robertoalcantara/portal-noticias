@@ -101,6 +101,20 @@ o tempo todo.
   `wrangler pages deploy`** — em ambiente não-interativo (CI) o wrangler
   não cria o projeto sozinho. O workflow tem um passo `curl` idempotente
   que garante isso a cada rodada (ignora erro de "já existe" com `|| true`).
+- **Modo manual (`MANUAL_URLS`) NÃO passa por `cluster_and_classify`.**
+  De propósito — o filtro de "fora do escopo"/"redundante" existe pra
+  decidir automaticamente o que vale a pena virar matéria; quando uma
+  pessoa já escolheu o link à mão, esse julgamento já foi feito por
+  ela. A categoria final da matéria ainda vem normal, do próprio
+  `rewrite_with_claude` (o JSON de saída sempre inclui `"categoria"`
+  dentre `ALLOWED_CATEGORIES` — isso nunca dependeu do resultado do
+  agrupamento, só o filtro de escopo é que dependia). O núcleo do
+  processamento (escrita → revisão de fatos → imagem → cards → post)
+  foi extraído do loop de `main()` pra `process_group()` justamente
+  pra ser reaproveitado nos dois modos sem duplicar lógica — se mexer
+  num, teste o outro também (ver testes ponta a ponta feitos com
+  `main()`/`run_manual_mode()` mockados, mesmo padrão usado nas
+  outras features deste projeto).
 - **Cache HTTP: não mexemos no comportamento padrão do Cloudflare Pages
   para HTML/CSS/JS, de propósito.** Por padrão o Pages já envia
   `Cache-Control: public, max-age=0, must-revalidate` + `ETag` pra todo
@@ -343,6 +357,29 @@ No GitHub: aba **Actions → "Atualizar notícias" → Run workflow**.
 O script roda, grava as matérias, faz commit — e o Cloudflare publica.
 Depois disso, roda sozinho a cada 3 horas.
 
+### 5. (Opcional) Gerar uma matéria manualmente a partir de link(s)
+Além da rodada automática, tem um segundo workflow —
+**Actions → "Gerar matéria manual (link específico)" → Run workflow**
+— que recebe um campo `urls` (um link por linha, ou separados por
+vírgula) e gera UMA matéria só a partir deles, pulando sources.yaml e o
+agrupamento/classificação automático por completo. Útil pra publicar
+algo na hora (ex.: saiu uma notícia importante e você não quer esperar
+a próxima rodada de hora em hora varrer o RSS/listagem da fonte).
+
+Se dois ou mais links tratarem do MESMO fato, informe todos juntos no
+mesmo campo `urls`: eles viram fontes de UMA única matéria (mesma
+lógica de agregação multi-fonte do funil automático), em vez de gerar
+uma matéria por link. Passa pelo mesmo pipeline de sempre — escrita,
+revisão de fatos, imagem, cards — só que sem o filtro de "fora do
+escopo"/"redundante" do agrupamento automático (a pessoa que
+escolheu o link já decidiu que aquilo deve virar matéria). Os links
+processados são marcados em `pipeline/seen.json` no final, pra rodada
+automática não tentar publicar a mesma notícia de novo depois.
+
+Ver env `MANUAL_URLS`, função `run_manual_mode()` em
+`pipeline/generate.py`, e o workflow
+`.github/workflows/manual-article.yml`.
+
 ## Rodar localmente (opcional)
 
 ```bash
@@ -381,6 +418,7 @@ cd site && hugo server
 | Modelo de geração/edição de imagem (IA) | env `GEMINI_IMAGE_MODEL` (padrão: `gemini-2.5-flash-image`) |
 | Escritores/pseudônimos e critério de escolha | `WRITER_PROFILES` e `select_writer()` em `pipeline/generate.py` (padrão: Bruno Bandeira; Armando Traço a partir de 3 fontes utilizáveis) |
 | Cache HTTP (Cache-Control) das imagens de matéria | `site/static/_headers` (padrão do Cloudflare Pages já cobre HTML/CSS/JS) |
+| Gerar matéria manual a partir de link(s) específico(s) | workflow `manual-article.yml` (campo `urls`) ou env `MANUAL_URLS` local |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.
