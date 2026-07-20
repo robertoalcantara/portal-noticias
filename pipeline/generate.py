@@ -56,6 +56,7 @@ import sys
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from html import unescape as html_unescape
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -1055,6 +1056,56 @@ def extract_source_image_candidates(html: str, page_url: str) -> list[str]:
     return result
 
 
+# Palavras que indicam que um texto próximo da imagem É um crédito de
+# fotografia (e não só uma legenda descritiva qualquer) — usado só pra
+# decidir se um <figcaption> vale como crédito.
+_PHOTO_CREDIT_KEYWORDS = (
+    "foto:", "fotos:", "crédito:", "credito:", "credit:", "credits:",
+    "reprodução", "reproducao", "divulgação", "divulgacao",
+    "reuters", "getty", "ap photo", "xpb", "lat images", "motorsport images",
+)
+
+# Padrões de crédito estruturado (schema.org ImageObject via JSON-LD),
+# comum em CMS de portais de notícia profissionais — o jeito mais
+# confiável de achar o crédito certo da foto, quando existe.
+_STRUCTURED_CREDIT_PATTERNS = (
+    re.compile(r'"creditText"\s*:\s*"([^"]{2,120})"', re.I),
+    re.compile(r'"copyrightHolder"\s*:\s*\{[^}]*?"name"\s*:\s*"([^"]{2,120})"', re.I),
+    re.compile(r'"creator"\s*:\s*\{[^}]*?"name"\s*:\s*"([^"]{2,120})"', re.I),
+)
+
+_FIGCAPTION_PATTERN = re.compile(r'<figcaption[^>]*>(.*?)</figcaption>', re.I | re.S)
+
+
+def extract_photo_credit(html: str) -> str | None:
+    """Tenta achar o crédito ESPECÍFICO da fotografia na página-fonte (quem
+    tirou/detém a foto — ex.: "XPB Images", "Getty Images", um fotógrafo
+    nomeado), pra usar quando a foto ORIGINAL é reaproveitada sem edição
+    (ver get_ai_variation_image). Devolve None se não achar nada confiável
+    — quem chama cai de volta pro nome do veículo nesse caso. Best-effort:
+    olha primeiro dados estruturados (schema.org ImageObject via JSON-LD,
+    o sinal mais confiável), depois legendas de figura (<figcaption>) que
+    contenham uma palavra-chave de crédito."""
+    if not html:
+        return None
+
+    for pattern in _STRUCTURED_CREDIT_PATTERNS:
+        match = pattern.search(html)
+        if match:
+            credit = html_unescape(match.group(1)).strip()
+            if credit:
+                return credit[:160]
+
+    for fig_match in _FIGCAPTION_PATTERN.finditer(html):
+        text = re.sub(r"<[^>]+>", " ", fig_match.group(1))
+        text = html_unescape(text).strip()
+        text = re.sub(r"\s+", " ", text)
+        if text and any(keyword in text.lower() for keyword in _PHOTO_CREDIT_KEYWORDS):
+            return text[:160]
+
+    return None
+
+
 def download_image_bytes(
     url: str,
     max_bytes: int = 8_000_000,
@@ -1217,11 +1268,15 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
 
     Se a foto original foi baixada com sucesso mas a CHAMADA AO GEMINI
     falhar (rede, quota, resposta inválida etc.), a foto original da
-    matéria-fonte é usada como está (sem variação por IA), com crédito
-    visível ao veículo de origem — em vez de tentar outra fonte ou ficar
-    sem imagem nenhuma. Pedido explícito do dono do projeto: preferir uma
-    foto de verdade (creditada) a um placeholder genérico só porque a
-    geração falhou numa rodada."""
+    matéria-fonte é usada como está (sem variação por IA), com crédito —
+    em vez de tentar outra fonte ou ficar sem imagem nenhuma. Pedido
+    explícito do dono do projeto: preferir uma foto de verdade (creditada)
+    a um placeholder genérico só porque a geração falhou numa rodada. O
+    crédito, nesse caso, prioriza o crédito ESPECÍFICO da fotografia (se a
+    página trouxer um — ver extract_photo_credit()) e só cai pro nome do
+    veículo quando não acha nada mais específico. Quando a imagem É gerada
+    por IA (variação), NUNCA leva crédito — não é uma foto de banco, é uma
+    variação derivada da matéria-fonte."""
     if DRY_RUN or not GEMINI_API_KEY:
         return None
 
@@ -1266,10 +1321,16 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
 
         # Geração por IA falhou, mas já temos a foto original baixada e
         # validada (passou pelo filtro de tamanho/dimensões em
-        # download_image_bytes) — usa ela direto, com crédito ao veículo.
+        # download_image_bytes) — usa ela direto, com crédito. Prioridade
+        # do crédito: (1) o crédito ESPECÍFICO da fotografia, se a página
+        # trouxer um (schema.org/figcaption — ex.: "XPB Images", um
+        # fotógrafo nomeado); (2) se não achar nada específico, cai pro
+        # nome do veículo, que ainda é uma atribuição válida (é de lá que
+        # a foto veio).
+        photo_credit = extract_photo_credit(html) or c.get("name", "")
         print(
             f"    aviso: geração por IA falhou pra essa fonte, usando a foto "
-            f"original de {c.get('name', link)} (com crédito)",
+            f"original ({photo_credit or link}) (com crédito)",
             file=sys.stderr,
         )
         ext = "png" if "png" in original_mime else "jpg"
@@ -1277,7 +1338,7 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
         (GENERATED_IMAGES_DIR / filename).write_bytes(original_bytes)
         return {
             "url": f"{GENERATED_IMAGES_URL_PREFIX}/{filename}",
-            "credit_name": c.get("name", ""),
+            "credit_name": photo_credit,
             "credit_url": link,
             "provider": "Foto original da matéria-fonte",
             "source_image_url": image_url,

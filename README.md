@@ -178,11 +178,17 @@ consiga extrair (e nenhuma outra fonte do grupo tiver), a matéria fica
 Se a foto original for baixada com sucesso mas a **chamada ao Gemini
 falhar** (rede, quota, resposta inválida etc.), o pipeline usa a **mesma
 foto original da matéria-fonte, sem edição**, em vez de tentar outra
-fonte do grupo ou ficar sem imagem — só nesse caso a foto é creditada ao
-veículo de origem (`image_credit_name`/`image_credit_url`, mostrado na
-página da matéria). A imagem gerada por IA (quando a geração dá certo)
-continua sem crédito, já que é uma variação derivada, não uma foto de
-banco.
+fonte do grupo ou ficar sem imagem — só nesse caso a foto é creditada
+(`image_credit_name`/`image_credit_url`, mostrado na página da matéria).
+O crédito prioriza o crédito ESPECÍFICO da fotografia, se a página da
+matéria-fonte trouxer um (`extract_photo_credit()` em
+`pipeline/generate.py`: procura dados estruturados schema.org
+`ImageObject` — `creditText`/`copyrightHolder`/`creator` — ou uma
+legenda `<figcaption>` com palavra-chave de crédito, tipo "Foto:",
+"Crédito:", "Divulgação", nome de agência etc.); só cai pro nome do
+veículo quando a página não traz nada mais específico. A imagem gerada
+por IA (quando a geração dá certo) **nunca** leva crédito, já que é uma
+variação derivada, não uma foto de banco nem a foto de terceiros.
 
 Secrets:
 - `GEMINI_API_KEY` — necessária para ter imagem nas matérias. Crie em
