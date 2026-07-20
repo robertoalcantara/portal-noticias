@@ -395,8 +395,18 @@ escolheu o link já decidiu que aquilo deve virar matéria). Os links
 processados são marcados em `pipeline/seen.json` no final, pra rodada
 automática não tentar publicar a mesma notícia de novo depois.
 
-Ver env `MANUAL_URLS`, função `run_manual_mode()` em
-`pipeline/generate.py`, e o workflow
+Tem também um campo opcional `images` — link(s) de imagem separados por
+vírgula, pra usar na matéria em vez de tentar extrair foto da(s)
+página(s)-fonte. A PRIMEIRA imagem é a capa (passa pela mesma variação
+por IA de sempre se `GEMINI_API_KEY` estiver configurada, com o mesmo
+fallback pra imagem original se a API falhar ou a chave não estiver
+definida); as demais, se houver, são usadas como fundo dos cards de
+Stories, uma por card, alternando em ordem em vez de repetir sempre a
+mesma foto da capa. Deixe `images` em branco pra manter o comportamento
+de sempre (extrair a foto automaticamente da matéria-fonte).
+
+Ver env `MANUAL_URLS`/`MANUAL_IMAGES`, funções `run_manual_mode()` e
+`build_manual_image_info()` em `pipeline/generate.py`, e o workflow
 `.github/workflows/manual-article.yml`.
 
 ## Rodar localmente (opcional)
@@ -438,6 +448,7 @@ cd site && hugo server
 | Escritores/pseudônimos e critério de escolha | `WRITER_PROFILES` e `select_writer()` em `pipeline/generate.py` (padrão: Bruno Bandeira; Armando Traço a partir de 3 fontes utilizáveis) |
 | Cache HTTP (Cache-Control) das imagens de matéria | `site/static/_headers` (padrão do Cloudflare Pages já cobre HTML/CSS/JS) |
 | Gerar matéria manual a partir de link(s) específico(s) | workflow `manual-article.yml` (campo `urls`) ou env `MANUAL_URLS` local |
+| Imagem manual da matéria (capa + extras pros cards) | campo `images` do workflow manual, ou env `MANUAL_IMAGES` local |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.

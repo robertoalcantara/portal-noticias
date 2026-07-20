@@ -41,6 +41,16 @@ Variáveis de ambiente:
                      matéria — útil pra publicar manualmente uma notícia
                      específica a partir do link, sem esperar o RSS/
                      listagem pegar. Ver run_manual_mode().)
+  MANUAL_IMAGES      (opcional, só vale junto com MANUAL_URLS — uma ou
+                     mais imagens pra usar na matéria em vez de tentar
+                     extrair da(s) página(s)-fonte, separadas por vírgula
+                     ou quebra de linha. Cada uma pode ser um link
+                     http(s) ou um caminho de arquivo local. A PRIMEIRA é
+                     a capa (passa por variação de IA se GEMINI_API_KEY
+                     estiver configurada, como qualquer capa); as demais,
+                     se houver, são usadas como fundo dos cards de
+                     Stories, uma por card, alternando em ordem em vez de
+                     repetir a mesma foto. Ver build_manual_image_info().)
   DRY_RUN            (opcional, "1" para não chamar a API — usa texto de teste)
   GEMINI_API_KEY      (obrigatória para gerar imagem — sem ela, ou se a
                        matéria-fonte não tiver imagem, ou se a chamada
@@ -1568,12 +1578,20 @@ def generate_and_render_cards(
     filename_base: str,
     date: datetime,
     writer: WriterProfile,
+    extra_card_images: list[Path] | None = None,
 ) -> list[str]:
     """Gera os textos dos cards (LLM, na voz do MESMO `writer` que escreveu
     a matéria) e renderiza as imagens (Pillow), gravando a página irmã em
     site/content/cards/. Devolve a lista de URLs das imagens geradas (vazia
     se algo falhar — ver call sites: isso NUNCA deve impedir a matéria em
-    si de ser publicada)."""
+    si de ser publicada).
+
+    `extra_card_images` (só usado no modo manual, ver MANUAL_IMAGES/
+    build_manual_image_info()) é uma lista opcional de imagens ADICIONAIS
+    à capa, usadas como fundo dos cards alternando em ordem (card 1 usa a
+    capa, card 2 usa a primeira extra, card 3 a segunda, e por aí — ou
+    volta pra capa se acabarem as extras) em vez de repetir sempre a
+    mesma foto da capa em todo card."""
     texts = generate_card_texts(article, writer)
 
     background_path = None
@@ -1582,9 +1600,13 @@ def generate_and_render_cards(
         if candidate.exists():
             background_path = candidate
 
+    backgrounds: list[Path] = [background_path] if background_path else []
+    if extra_card_images:
+        backgrounds.extend(p for p in extra_card_images if p and p.exists())
+
     out_dir = GENERATED_CARDS_DIR / filename_base
     category = article.get("categoria", ALLOWED_CATEGORIES[0])
-    saved_paths = cards_module.generate_card_images(texts, category, background_path, out_dir)
+    saved_paths = cards_module.generate_card_images(texts, category, backgrounds or None, out_dir)
     image_urls = [f"{GENERATED_CARDS_URL_PREFIX}/{filename_base}/{p.name}" for p in saved_paths]
     write_cards_page(filename_base, article, date, image_urls)
     return image_urls
@@ -1619,7 +1641,13 @@ def _new_run_stats() -> dict:
     }
 
 
-def process_group(group_candidates: list[dict], titles_preview: str, stats: dict) -> None:
+def process_group(
+    group_candidates: list[dict],
+    titles_preview: str,
+    stats: dict,
+    manual_image_info: dict | None = None,
+    manual_extra_card_images: list[Path] | None = None,
+) -> None:
     """Processa um grupo de candidatos (uma ou mais fontes do MESMO fato)
     até publicar (ou descartar) a matéria: escreve, revisa fatos, gera
     imagem, gera cards e grava o post. Mutação em `stats` (ver
@@ -1628,6 +1656,13 @@ def process_group(group_candidates: list[dict], titles_preview: str, stats: dict
     automático (rodada normal, um grupo por vez dentro do `for group in
     groups`) quanto pelo modo manual (run_manual_mode(), um único grupo
     feito a partir de link(s) informados à mão via MANUAL_URLS).
+
+    `manual_image_info`/`manual_extra_card_images` (só usados no modo
+    manual, ver MANUAL_IMAGES/build_manual_image_info()): quando
+    `manual_image_info` não é None, ele SUBSTITUI a extração automática de
+    imagem (get_ai_variation_image) — a pessoa já escolheu a foto da capa
+    à mão. `manual_extra_card_images` (se houver) vira fundo alternado dos
+    cards de Stories, ver generate_and_render_cards().
 
     Não marca links como vistos — isso é responsabilidade de quem chama
     (no finally do laço, ou em run_manual_mode), porque só quem chama sabe
@@ -1699,8 +1734,11 @@ def process_group(group_candidates: list[dict], titles_preview: str, stats: dict
         publish_date = max(c["date"] for c in group_candidates)
 
         stats["n_enviados_imagem"] += 1
-        print(f"    gerando imagem ({GEMINI_IMAGE_MODEL})...")
-        image_info = get_ai_variation_image(group_candidates)
+        if manual_image_info is not None:
+            image_info = manual_image_info
+        else:
+            print(f"    gerando imagem ({GEMINI_IMAGE_MODEL})...")
+            image_info = get_ai_variation_image(group_candidates)
         if image_info:
             stats["n_imagem_gerada"] += 1
             tokens = image_info.get("tokens")
@@ -1711,6 +1749,8 @@ def process_group(group_candidates: list[dict], titles_preview: str, stats: dict
                     f"resposta={tokens.get('resposta', 0)} "
                     f"total={tokens.get('total', 0)}"
                 )
+            elif manual_image_info is not None:
+                tokens_str = "nenhuma chamada ao Gemini nessa etapa (imagem informada manualmente)"
             else:
                 tokens_str = "não informado pela API"
             print(f"    imagem: ok ({image_info.get('provider', '?')})")
@@ -1727,7 +1767,12 @@ def process_group(group_candidates: list[dict], titles_preview: str, stats: dict
         card_urls: list[str] = []
         try:
             card_urls = generate_and_render_cards(
-                article, image_info, filename_base, publish_date, writer
+                article,
+                image_info,
+                filename_base,
+                publish_date,
+                writer,
+                extra_card_images=manual_extra_card_images,
             )
         except Exception as exc:  # noqa: BLE001
             stats["n_cards_falhou"] += 1
@@ -1813,7 +1858,117 @@ def build_manual_candidate(url: str) -> dict | None:
     }
 
 
-def run_manual_mode(urls: list[str]) -> int:
+def load_manual_image_source(source: str) -> tuple[bytes, str] | None:
+    """Carrega os bytes de UMA imagem informada manualmente (MANUAL_IMAGES,
+    ver build_manual_image_info()). `source` pode ser um link http(s)
+    (reaproveita download_image_bytes(), com a mesma validação de
+    tamanho/dimensão) ou o caminho de um arquivo local (útil rodando o
+    script na mão; num workflow do GitHub Actions, na prática só links
+    fazem sentido, já que workflow_dispatch não tem campo de upload de
+    arquivo). Devolve (bytes, mime_type) ou None se não conseguir
+    carregar/validar como imagem de verdade."""
+    source = source.strip()
+    if source.startswith("http://") or source.startswith("https://"):
+        return download_image_bytes(source)
+    path = Path(source)
+    if not path.is_file():
+        print(f"    aviso: arquivo de imagem não encontrado: {source}", file=sys.stderr)
+        return None
+    try:
+        data = path.read_bytes()
+        with Image.open(io.BytesIO(data)) as img:
+            width, height = img.size
+            fmt = (img.format or "JPEG").upper()
+    except Exception as exc:  # noqa: BLE001
+        print(f"    aviso: não consegui ler {source} como imagem ({exc})", file=sys.stderr)
+        return None
+    if width < 480 or height < 270:
+        print(f"    aviso: imagem {source} é pequena demais ({width}x{height})", file=sys.stderr)
+        return None
+    mime = "image/png" if fmt == "PNG" else "image/jpeg"
+    return data, mime
+
+
+def build_manual_image_info(sources: list[str]) -> tuple[dict | None, list[Path]]:
+    """A partir de MANUAL_IMAGES (lista de links/arquivos informados à
+    mão), monta o `image_info` da CAPA (a primeira imagem da lista — passa
+    por variação de IA se GEMINI_API_KEY estiver configurada, com o mesmo
+    fallback pra imagem original do resto do pipeline se a API falhar ou
+    a chave não estiver definida) e a lista de Paths das imagens EXTRAS
+    (a partir da segunda), salvas em site/static/images/ia/ pra servir de
+    fundo alternado dos cards de Stories (ver generate_and_render_cards()).
+
+    Devolve (image_info_da_capa_ou_None, lista_de_paths_extras) — ambos
+    vazios/None se nenhuma imagem da lista pôde ser carregada (quem chama
+    deve então cair pra extração automática, como se MANUAL_IMAGES não
+    tivesse sido informada)."""
+    loaded: list[tuple[bytes, str, str]] = []
+    for source in sources:
+        result = load_manual_image_source(source)
+        if result is None:
+            continue
+        data, mime = result
+        loaded.append((data, mime, source))
+
+    if not loaded:
+        return None, []
+
+    cover_bytes, cover_mime, cover_source = loaded[0]
+    GENERATED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+    def credit_for(source: str) -> tuple[str, str]:
+        if source.startswith("http://") or source.startswith("https://"):
+            return urlparse(source).netloc.replace("www.", ""), source
+        return "", ""
+
+    image_info: dict | None = None
+    if GEMINI_API_KEY:
+        print(f"    tentando variação por IA da capa informada manualmente ({GEMINI_IMAGE_MODEL})...")
+        resized_bytes, resized_mime = resize_for_generation(cover_bytes, cover_mime)
+        variation = generate_image_variation(resized_bytes, resized_mime)
+        if variation:
+            variation_bytes, out_mime, token_info = variation
+            digest = hashlib.sha1(cover_bytes).hexdigest()[:16]
+            ext = "png" if "png" in out_mime else "jpg"
+            filename = f"{digest}.{ext}"
+            (GENERATED_IMAGES_DIR / filename).write_bytes(variation_bytes)
+            image_info = {
+                "url": f"{GENERATED_IMAGES_URL_PREFIX}/{filename}",
+                "credit_name": "",
+                "credit_url": "",
+                "provider": "IA (variação de imagem enviada manualmente)",
+                "source_image_url": cover_source,
+                "tokens": token_info,
+            }
+
+    if image_info is None:
+        digest = hashlib.sha1(cover_bytes).hexdigest()[:16]
+        ext = "png" if "png" in cover_mime else "jpg"
+        filename = f"{digest}-original.{ext}"
+        (GENERATED_IMAGES_DIR / filename).write_bytes(cover_bytes)
+        credit_name, credit_url = credit_for(cover_source)
+        image_info = {
+            "url": f"{GENERATED_IMAGES_URL_PREFIX}/{filename}",
+            "credit_name": credit_name,
+            "credit_url": credit_url,
+            "provider": "Imagem enviada manualmente",
+            "source_image_url": cover_source,
+            "tokens": None,
+        }
+
+    extra_paths: list[Path] = []
+    for data, mime, source in loaded[1:]:
+        digest = hashlib.sha1(data).hexdigest()[:16]
+        ext = "png" if "png" in mime else "jpg"
+        filename = f"{digest}-manual.{ext}"
+        extra_path = GENERATED_IMAGES_DIR / filename
+        extra_path.write_bytes(data)
+        extra_paths.append(extra_path)
+
+    return image_info, extra_paths
+
+
+def run_manual_mode(urls: list[str], image_sources: list[str] | None = None) -> int:
     """Modo manual (env MANUAL_URLS): recebe um ou mais links de
     matéria-fonte já escolhidos por uma pessoa, e produz UMA matéria a
     partir deles — mesmo funil de escrita/revisão/imagem/cards de sempre
@@ -1822,7 +1977,12 @@ def run_manual_mode(urls: list[str]) -> int:
     agrupar ou classificar por escopo: a pessoa já decidiu que esse
     conteúdo deve virar matéria. Os links processados são marcados em
     `seen.json` no final, pra o funil automático não tentar publicar a
-    mesma notícia de novo depois."""
+    mesma notícia de novo depois.
+
+    `image_sources` (env MANUAL_IMAGES, opcional): links/arquivos de
+    imagem informados à mão pra usar na matéria em vez de extrair da(s)
+    página(s)-fonte — a primeira é a capa, as demais viram fundo alternado
+    dos cards de Stories (ver build_manual_image_info())."""
     print(f"Modo manual: {len(urls)} link(s) informado(s) via MANUAL_URLS")
     seen = load_seen()
 
@@ -1840,6 +2000,22 @@ def run_manual_mode(urls: list[str]) -> int:
         print("\nNenhum dos links informados pôde ser processado. Concluído (nada publicado).", file=sys.stderr)
         return 1
 
+    manual_image_info: dict | None = None
+    manual_extra_card_images: list[Path] = []
+    if image_sources:
+        print(f"\nCarregando {len(image_sources)} imagem(ns) informada(s) manualmente (MANUAL_IMAGES)...")
+        manual_image_info, manual_extra_card_images = build_manual_image_info(image_sources)
+        if manual_image_info:
+            print(f"    capa: ok ({manual_image_info.get('provider', '?')})")
+        else:
+            print(
+                "    aviso: nenhuma das imagens informadas pôde ser usada — "
+                "seguindo com a extração automática da(s) página(s)-fonte",
+                file=sys.stderr,
+            )
+        if manual_extra_card_images:
+            print(f"    {len(manual_extra_card_images)} imagem(ns) extra(s) pra alternar nos cards de Stories")
+
     links = [c["link"] for c in group_candidates]
     titles_preview = " | ".join(c["title"][:50] for c in group_candidates)
     print(f"\n  + [manual] {titles_preview}")
@@ -1847,7 +2023,13 @@ def run_manual_mode(urls: list[str]) -> int:
 
     stats = _new_run_stats()
     try:
-        process_group(group_candidates, titles_preview, stats)
+        process_group(
+            group_candidates,
+            titles_preview,
+            stats,
+            manual_image_info=manual_image_info,
+            manual_extra_card_images=manual_extra_card_images or None,
+        )
     finally:
         for link in links:
             seen.add(link)
@@ -1870,7 +2052,13 @@ def main() -> int:
     manual_urls_raw = os.environ.get("MANUAL_URLS", "").strip()
     if manual_urls_raw:
         urls = [u.strip() for u in re.split(r"[\n,]+", manual_urls_raw) if u.strip()]
-        return run_manual_mode(urls)
+        manual_images_raw = os.environ.get("MANUAL_IMAGES", "").strip()
+        image_sources = (
+            [s.strip() for s in re.split(r"[\n,]+", manual_images_raw) if s.strip()]
+            if manual_images_raw
+            else None
+        )
+        return run_manual_mode(urls, image_sources)
 
     config = yaml.safe_load(SOURCES_FILE.read_text(encoding="utf-8"))
     feeds = config.get("feeds", [])

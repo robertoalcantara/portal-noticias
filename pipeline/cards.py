@@ -282,20 +282,32 @@ def render_card(
 def generate_card_images(
     texts: list[str],
     category: str,
-    background_path: Path | None,
+    background_path: Path | list[Path] | None,
     out_dir: Path,
     site_handle: str = "brgrid.com.br",
     cta_text: str = "Matéria completa em brgrid.com.br",
 ) -> list[Path]:
     """Renderiza um card por texto em `texts` e salva em out_dir/1.png,
-    2.png, ... Último card usa `cta_text` no rodapé em vez do handle simples.
+    2.png, ... Último card usa `cta_text` no rodapé em vez do handle
+    simples. `background_path` aceita um Path único (repetido em todos os
+    cards, comportamento de sempre) OU uma lista de Paths (uma por card,
+    alternando em ordem -- volta pro início se houver mais cards que
+    imagens; ver MANUAL_IMAGES/build_manual_image_info() em generate.py).
     Devolve a lista de paths salvos (mesma ordem de `texts`)."""
+    if isinstance(background_path, list):
+        backgrounds = background_path
+    elif background_path is not None:
+        backgrounds = [background_path]
+    else:
+        backgrounds = []
+
     out_dir.mkdir(parents=True, exist_ok=True)
     total = len(texts)
     paths = []
     for i, text in enumerate(texts, start=1):
         handle = cta_text if i == total else site_handle
-        img = render_card(text, i, total, category, background_path, site_handle=handle)
+        bg = backgrounds[(i - 1) % len(backgrounds)] if backgrounds else None
+        img = render_card(text, i, total, category, bg, site_handle=handle)
         path = out_dir / f"{i}.png"
         img.save(path, "PNG", optimize=True)
         paths.append(path)
