@@ -9,7 +9,7 @@ em generate.py via call_llm, ver CARDS_SYSTEM_PROMPT) e uma imagem de fundo
 opcional, e desenha com Pillow. Se não houver imagem de fundo (matéria sem
 foto), usa um fundo sólido na cor da categoria com a mesma listra diagonal
 do placeholder do site (ver .placeholder em site/static/css/style.css) —
-assim os cards continuam com cara de BRGrid mesmo sem foto.
+assim os cards continuam com cara de Grid Geral mesmo sem foto.
 
 Qualquer falha aqui (fonte não carrega, imagem corrompida etc.) deve ser
 tratada pelo chamador como não-fatal: sem cards, a matéria continua sendo
@@ -185,7 +185,7 @@ def render_card(
     total: int,
     category: str,
     background_path: Path | None,
-    site_handle: str = "brgrid.com.br",
+    site_handle: str = "gridgeral.com",
 ) -> Image.Image:
     """Renderiza UM card (1080x1920). `index`/`total` são 1-based, usados só
     pra desenhar os tracinhos de progresso no topo (estilo Stories)."""
@@ -221,7 +221,7 @@ def render_card(
     else:
         brand_y = 46
 
-    # marca BRGrid (canto superior esquerdo) — barrinha inclinada + nome
+    # marca Grid Geral (canto superior esquerdo) — barrinha inclinada + nome
     mark_font = _load_font("ArchivoBlack-Regular", 34)
     draw.polygon(
         [
@@ -232,7 +232,7 @@ def render_card(
         ],
         fill=_hex_to_rgb(color_hex),
     )
-    draw.text((margin + 26, brand_y - 2), "BRGrid", font=mark_font, fill="white")
+    draw.text((margin + 26, brand_y - 2), "Grid Geral", font=mark_font, fill="white")
 
     # chip de categoria (canto superior direito)
     chip_font = _load_font("BarlowCondensed-Bold", 30)
@@ -284,8 +284,8 @@ def generate_card_images(
     category: str,
     background_path: Path | list[Path] | None,
     out_dir: Path,
-    site_handle: str = "brgrid.com.br",
-    cta_text: str = "Matéria completa em brgrid.com.br",
+    site_handle: str = "gridgeral.com",
+    cta_text: str = "Matéria completa em gridgeral.com",
 ) -> list[Path]:
     """Renderiza um card por texto em `texts` e salva em out_dir/1.png,
     2.png, ... Último card usa `cta_text` no rodapé em vez do handle

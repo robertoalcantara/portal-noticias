@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gera matérias para o BRGrid a partir de várias fontes (RSS e sites sem feed).
+Gera matérias para o Grid Geral a partir de várias fontes (RSS e sites sem feed).
 
 Fluxo:
   1. Lê a lista de fontes em sources.yaml (RSS ou listagem HTML)
@@ -180,7 +180,7 @@ INSUFFICIENT_CONTENT_TITLE = "CONTEUDO_INSUFICIENTE"
 # Escritores (pseudônimos editoriais)
 # --------------------------------------------------------------------------
 #
-# O BRGrid publica sob pseudônimos fixos em vez do nome de uma pessoa real.
+# O Grid Geral publica sob pseudônimos fixos em vez do nome de uma pessoa real.
 # Cada "escritor" tem sua própria voz/persona (usada na geração da matéria,
 # na revisão de fatos — que precisa PRESERVAR o tom de quem escreveu — e na
 # geração dos cards de Stories) e um critério de quando é escolhido pra
@@ -278,7 +278,7 @@ def select_writer(usable_source_count: int) -> WriterProfile:
 
 
 CLUSTER_SYSTEM_PROMPT = f"""\
-Você organiza a pauta de um portal de notícias de automobilismo chamado BRGrid.
+Você organiza a pauta de um portal de notícias de automobilismo chamado Grid Geral.
 Vai receber uma lista de manchetes (com id, fonte e resumo) vindas de vários
 sites diferentes na mesma rodada de coleta.
 
@@ -327,7 +327,7 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem crases):
 
 def build_write_system_prompt(writer: WriterProfile) -> str:
     return f"""\
-Você é {writer.author_name}, editor do BRGrid, portal brasileiro de notícias
+Você é {writer.author_name}, editor do Grid Geral, portal brasileiro de notícias
 de automobilismo focado em: {", ".join(ALLOWED_CATEGORIES)}.
 
 {writer.persona}
@@ -369,7 +369,7 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem crases), no format
 
 def build_factcheck_system_prompt(writer: WriterProfile) -> str:
     return f"""\
-Você é o revisor de fatos (fact-checker) do BRGrid, portal de automobilismo.
+Você é o revisor de fatos (fact-checker) do Grid Geral, portal de automobilismo.
 Vai receber um ou mais TEXTOS-FONTE originais (rotulados por fonte) e um
 RASCUNHO em português gerado por outro editor a partir deles. Seu trabalho é
 comparar o rascunho contra os textos-fonte FRASE A FRASE e corrigir qualquer
@@ -421,7 +421,7 @@ no mesmo formato do rascunho recebido:
 
 def build_cards_system_prompt(writer: WriterProfile) -> str:
     return f"""\
-Você é {writer.author_name}, editor do BRGrid, adaptando uma matéria já
+Você é {writer.author_name}, editor do Grid Geral, adaptando uma matéria já
 pronta pra uma sequência de "cards" de Stories (Instagram) — imagens
 verticais, uma frase de cada vez, que as pessoas passam o dedo pra ler
 rapidinho.
@@ -1271,7 +1271,7 @@ def download_image_bytes(
     dimensões pequenas demais pra ser uma foto de matéria de verdade (em
     vez de um logo/ícone/thumbnail que passou pelo filtro de URL)."""
     req = urllib.request.Request(
-        url, headers={"User-Agent": "Mozilla/5.0 (compatible; BRGridBot/1.0)"}
+        url, headers={"User-Agent": "Mozilla/5.0 (compatible; GridGeralBot/1.0)"}
     )
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
@@ -2060,7 +2060,7 @@ def run_manual_mode(urls: list[str], image_sources: list[str] | None = None) -> 
 
 def find_post_by_url(article_url: str) -> Path | None:
     """A partir do link de uma matéria já publicada (link completo, tipo
-    https://brgrid.com.br/2026/07/titulo-da-materia/, OU só o caminho a
+    https://gridgeral.com/2026/07/titulo-da-materia/, OU só o caminho a
     partir do domínio, tipo /2026/07/titulo-da-materia), acha o arquivo
     .md correspondente em site/content/posts/. O link tem o formato
     /:year/:month/:slug/ (ver [permalinks] em site/hugo.toml); o nome do

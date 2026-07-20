@@ -1,4 +1,4 @@
-# BRGrid — portal de notícias de automobilismo (automatizado)
+# Grid Geral — portal de notícias de automobilismo (automatizado)
 
 Pipeline que lê notícias de várias fontes (RSS e sites sem feed), agrupa
 manchetes que tratam do mesmo fato vindas de fontes diferentes, reescreve o
@@ -284,7 +284,7 @@ visualmente — foi revertido. A solução atual, em `render_card()`
   `#e4572e` — a mesma dos links "Baixar ↓" na página de cards, ver
   `.cards-item figcaption a` em `site/static/css/style.css`) em vez de
   branco liso — maior contraste e reforça a identidade visual, sem
-  contorno. Marca "BRGrid" e handle do rodapé continuam brancos (ficam
+  contorno. Marca "Grid Geral" e handle do rodapé continuam brancos (ficam
   numa faixa onde o véu/gradiente já garante contraste de sobra).
 
 ## Estrutura
@@ -412,7 +412,7 @@ Ver env `MANUAL_URLS`/`MANUAL_IMAGES`, funções `run_manual_mode()` e
 ### 6. (Opcional) Excluir uma matéria pelo link
 **Actions → "Excluir matéria (por link)" → Run workflow**, campo
 `url` com o link da matéria publicada — pode ser o link completo
-(`https://brgrid.com.br/2026/07/titulo-da-materia/`) ou só o caminho
+(`https://gridgeral.com/2026/07/titulo-da-materia/`) ou só o caminho
 a partir do domínio (`/2026/07/titulo-da-materia`), com ou sem barra
 no início/fim. Apaga o post, a página de cards de Stories (se
 houver) e as imagens geradas associadas (capa e/ou cards) — só apaga

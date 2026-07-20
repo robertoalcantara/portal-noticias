@@ -21,7 +21,7 @@
         {{ with $page.Params.image_credit_name }}
           <p class="image-credit">
             Foto: {{ if $page.Params.image_credit_url }}<a href="{{ $page.Params.image_credit_url }}" target="_blank" rel="nofollow noopener">{{ . }}</a>{{ else }}{{ . }}{{ end }}
-            {{ if eq $page.Params.image_provider "Unsplash" }} / <a href="https://unsplash.com/?utm_source=BRGrid&utm_medium=referral" target="_blank" rel="nofollow noopener">Unsplash</a>{{ else if $page.Params.image_provider }} / {{ $page.Params.image_provider }}{{ end }}
+            {{ if eq $page.Params.image_provider "Unsplash" }} / <a href="https://unsplash.com/?utm_source=GridGeral&utm_medium=referral" target="_blank" rel="nofollow noopener">Unsplash</a>{{ else if $page.Params.image_provider }} / {{ $page.Params.image_provider }}{{ end }}
           </p>
         {{ end }}
       </div>

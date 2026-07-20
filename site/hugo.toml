@@ -1,10 +1,10 @@
 # baseURL do site publicado no Cloudflare Pages (projeto "portal-noticias").
 # O Cloudflare adicionou um sufixo aleatório ao subdomínio (comum quando o
 # nome já tem alguma colisão). Se você conectar um domínio próprio depois
-# (ex.: brgrid.com.br), troque aqui.
+# (ex.: gridgeral.com), troque aqui.
 baseURL = "https://portal-noticias-cz7.pages.dev/"
 languageCode = "pt-br"
-title = "BRGrid"
+title = "Grid Geral"
 enableRobotsTXT = true
 paginate = 20
 timeZone = "America/Fortaleza"
