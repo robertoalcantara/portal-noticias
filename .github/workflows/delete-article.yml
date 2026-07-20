@@ -11,8 +11,9 @@ on:
     inputs:
       url:
         description: >-
-          Link da matéria a excluir (ex.:
-          https://brgrid.com.br/2026/07/titulo-da-materia/).
+          Link da matéria a excluir. Pode ser o link completo (ex.:
+          https://brgrid.com.br/2026/07/titulo-da-materia/) ou só o
+          caminho a partir do domínio (ex.: /2026/07/titulo-da-materia).
         required: true
         type: string
 

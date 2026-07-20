@@ -82,6 +82,7 @@ Variáveis de ambiente:
 from __future__ import annotations
 
 import base64
+import difflib
 import hashlib
 import io
 import json
@@ -2058,29 +2059,62 @@ def run_manual_mode(urls: list[str], image_sources: list[str] | None = None) -> 
 
 
 def find_post_by_url(article_url: str) -> Path | None:
-    """A partir do link de uma matéria já publicada (BRGrid ou o domínio
-    .pages.dev), acha o arquivo .md correspondente em site/content/posts/.
-    O link tem o formato /:year/:month/:slug/ (ver [permalinks] em
-    site/hugo.toml); o nome do arquivo é sempre {YYYY-MM-DD}-{slug}.md
-    (ver post_filename_base()) -- casamos pelo SLUG (último segmento não
-    vazio do path da URL), já que o dia exato não aparece na URL. Só
-    aceita casamento EXATO do slug (não um prefixo/sufixo parecido) --
-    numa operação de exclusão/troca de imagem, é melhor devolver "não
-    encontrado" do que arriscar pegar a matéria errada."""
+    """A partir do link de uma matéria já publicada (link completo, tipo
+    https://brgrid.com.br/2026/07/titulo-da-materia/, OU só o caminho a
+    partir do domínio, tipo /2026/07/titulo-da-materia), acha o arquivo
+    .md correspondente em site/content/posts/. O link tem o formato
+    /:year/:month/:slug/ (ver [permalinks] em site/hugo.toml); o nome do
+    arquivo é sempre {YYYY-MM-DD}-{slug}.md (ver post_filename_base()) --
+    casamos pelo SLUG (último segmento não vazio do path da URL), já que
+    o dia exato não aparece na URL. urlparse() lida sozinho com link
+    completo (com ou sem barra final), só o caminho, ou o domínio sem
+    "https://" na frente -- em todos os casos o slug extraído é o mesmo.
+
+    Além do slug exato, tenta mais algumas variações tolerantes, na
+    ordem, antes de desistir: (1) se colaram o link da página de cards
+    de Stories (.../slug/cards/), usa o penúltimo segmento em vez do
+    último; (2) troca "_" por "-", caso tenham digitado com underscore
+    em vez de hífen; (3) corta em 70 caracteres, o mesmo limite de
+    post_filename_base() -- se digitaram o título inteiro em vez de
+    copiar o link renderizado, o slug real pode estar cortado no meio.
+    Mesmo assim, só aceita casamento EXATO em alguma dessas variações
+    (não um prefixo/sufixo parecido) -- numa operação de exclusão/troca
+    de imagem, é melhor devolver "não encontrado" do que arriscar pegar a
+    matéria errada."""
     parsed = urlparse(article_url)
     segments = [s for s in parsed.path.split("/") if s]
     if not segments:
         return None
+    if segments[-1].lower() == "cards" and len(segments) >= 2:
+        segments = segments[:-1]
     slug = segments[-1]
     if not POSTS_DIR.exists():
         return None
-    for candidate in POSTS_DIR.glob(f"*-{slug}.md"):
-        # nome do arquivo = "YYYY-MM-DD-<slug>.md" -- os 11 primeiros
-        # caracteres do stem são a data + hífen ("2026-07-17-"); o resto
-        # tem que bater com o slug pedido, exatamente.
-        if candidate.stem[11:] == slug:
-            return candidate
+
+    slugs_to_try = []
+    for candidate_slug in (slug, slug.replace("_", "-"), slug[:70]):
+        if candidate_slug and candidate_slug not in slugs_to_try:
+            slugs_to_try.append(candidate_slug)
+
+    for slug_try in slugs_to_try:
+        for candidate in POSTS_DIR.glob(f"*-{slug_try}.md"):
+            # nome do arquivo = "YYYY-MM-DD-<slug>.md" -- os 11 primeiros
+            # caracteres do stem são a data + hífen ("2026-07-17-"); o
+            # resto tem que bater com o slug tentado, exatamente.
+            if candidate.stem[11:] == slug_try:
+                return candidate
     return None
+
+
+def _suggest_similar_posts(slug: str, limit: int = 5) -> list[str]:
+    """Lista os slugs de matérias existentes mais parecidos com o
+    informado -- só pra ajudar a diagnosticar um "não encontrei" (ex.:
+    erro de digitação, ou o slug real foi cortado em 70 caracteres). Não
+    afeta o casamento em si, é só saída informativa no log."""
+    if not POSTS_DIR.exists():
+        return []
+    all_slugs = [candidate.stem[11:] for candidate in POSTS_DIR.glob("*.md")]
+    return difflib.get_close_matches(slug, all_slugs, n=limit, cutoff=0.4)
 
 
 def run_delete_mode(article_url: str) -> int:
@@ -2096,6 +2130,14 @@ def run_delete_mode(article_url: str) -> int:
     post_path = find_post_by_url(article_url)
     if post_path is None:
         print(f"Não encontrei nenhuma matéria com esse link em {POSTS_DIR}.", file=sys.stderr)
+        parsed = urlparse(article_url)
+        segments = [s for s in parsed.path.split("/") if s]
+        if segments:
+            similares = _suggest_similar_posts(segments[-1])
+            if similares:
+                print("Parecidas (talvez seja uma delas?):", file=sys.stderr)
+                for s in similares:
+                    print(f"  - {s}", file=sys.stderr)
         return 1
 
     filename_base = post_path.stem
@@ -2212,6 +2254,14 @@ def run_replace_image_mode(article_url: str, image_source: str) -> int:
     post_path = find_post_by_url(article_url)
     if post_path is None:
         print(f"Não encontrei nenhuma matéria com esse link em {POSTS_DIR}.", file=sys.stderr)
+        parsed = urlparse(article_url)
+        segments = [s for s in parsed.path.split("/") if s]
+        if segments:
+            similares = _suggest_similar_posts(segments[-1])
+            if similares:
+                print("Parecidas (talvez seja uma delas?):", file=sys.stderr)
+                for s in similares:
+                    print(f"  - {s}", file=sys.stderr)
         return 1
     print(f"  matéria encontrada: {post_path.name}")
 
