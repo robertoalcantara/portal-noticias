@@ -51,6 +51,16 @@ Variáveis de ambiente:
                      se houver, são usadas como fundo dos cards de
                      Stories, uma por card, alternando em ordem em vez de
                      repetir a mesma foto. Ver build_manual_image_info().)
+  DELETE_URL         (opcional — modo exclusão: link de uma matéria já
+                     publicada. Quando definida, o script IGNORA todo o
+                     resto e só apaga essa matéria (post, página de
+                     cards e imagens associadas, se não forem usadas por
+                     outra matéria). Ver run_delete_mode().)
+  REPLACE_IMAGE_URL / REPLACE_IMAGE_SOURCE (opcionais, só valem juntas —
+                     modo troca de imagem: REPLACE_IMAGE_URL é o link
+                     da matéria já publicada, REPLACE_IMAGE_SOURCE é o
+                     link ou arquivo local da nova imagem de capa.
+                     Ver run_replace_image_mode().)
   DRY_RUN            (opcional, "1" para não chamar a API — usa texto de teste)
   GEMINI_API_KEY      (obrigatória para gerar imagem — sem ela, ou se a
                        matéria-fonte não tiver imagem, ou se a chamada
@@ -77,6 +87,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import urllib.request
 
@@ -2046,8 +2057,208 @@ def run_manual_mode(urls: list[str], image_sources: list[str] | None = None) -> 
     return 1
 
 
+def find_post_by_url(article_url: str) -> Path | None:
+    """A partir do link de uma matéria já publicada (BRGrid ou o domínio
+    .pages.dev), acha o arquivo .md correspondente em site/content/posts/.
+    O link tem o formato /:year/:month/:slug/ (ver [permalinks] em
+    site/hugo.toml); o nome do arquivo é sempre {YYYY-MM-DD}-{slug}.md
+    (ver post_filename_base()) -- casamos pelo SLUG (último segmento não
+    vazio do path da URL), já que o dia exato não aparece na URL. Só
+    aceita casamento EXATO do slug (não um prefixo/sufixo parecido) --
+    numa operação de exclusão/troca de imagem, é melhor devolver "não
+    encontrado" do que arriscar pegar a matéria errada."""
+    parsed = urlparse(article_url)
+    segments = [s for s in parsed.path.split("/") if s]
+    if not segments:
+        return None
+    slug = segments[-1]
+    if not POSTS_DIR.exists():
+        return None
+    for candidate in POSTS_DIR.glob(f"*-{slug}.md"):
+        # nome do arquivo = "YYYY-MM-DD-<slug>.md" -- os 11 primeiros
+        # caracteres do stem são a data + hífen ("2026-07-17-"); o resto
+        # tem que bater com o slug pedido, exatamente.
+        if candidate.stem[11:] == slug:
+            return candidate
+    return None
+
+
+def run_delete_mode(article_url: str) -> int:
+    """Modo exclusão (env DELETE_URL): apaga a matéria correspondente ao
+    LINK informado -- o post em si, a página de cards de Stories (se
+    houver) e as imagens geradas associadas (capa e/ou cards), desde que
+    nenhuma OUTRA matéria ainda as referencie (checagem de segurança,
+    mesmo sendo bem improvável já que os nomes de arquivo são hash do
+    conteúdo/link). NÃO mexe em `seen.json` de propósito: apagar uma
+    matéria não deve fazer o funil automático tentar publicá-la nem
+    republicá-la sozinho na próxima rodada."""
+    print(f"Modo exclusão: procurando matéria de {article_url}")
+    post_path = find_post_by_url(article_url)
+    if post_path is None:
+        print(f"Não encontrei nenhuma matéria com esse link em {POSTS_DIR}.", file=sys.stderr)
+        return 1
+
+    filename_base = post_path.stem
+    print(f"  matéria encontrada: {post_path.name}")
+
+    fm = _read_post_frontmatter(post_path) or {}
+    image_url = fm.get("image") or ""
+
+    image_shared = False
+    if image_url:
+        for other in POSTS_DIR.glob("*.md"):
+            if other == post_path:
+                continue
+            try:
+                if image_url in other.read_text(encoding="utf-8", errors="ignore"):
+                    image_shared = True
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+
+    removed: list[str] = []
+
+    post_path.unlink()
+    removed.append(str(post_path.relative_to(ROOT)))
+
+    cards_page = CARDS_CONTENT_DIR / f"{filename_base}.md"
+    if cards_page.exists():
+        cards_page.unlink()
+        removed.append(str(cards_page.relative_to(ROOT)))
+
+    cards_dir = GENERATED_CARDS_DIR / filename_base
+    if cards_dir.exists():
+        shutil.rmtree(cards_dir)
+        removed.append(str(cards_dir.relative_to(ROOT)) + "/")
+
+    if image_url.startswith(GENERATED_IMAGES_URL_PREFIX):
+        if image_shared:
+            print(
+                f"  aviso: {image_url} ainda é referenciada por outra "
+                "matéria -- não apaguei o arquivo de imagem",
+                file=sys.stderr,
+            )
+        else:
+            image_path = ROOT / "site" / "static" / image_url.lstrip("/")
+            if image_path.exists():
+                image_path.unlink()
+                removed.append(str(image_path.relative_to(ROOT)))
+
+    print("\nRemovido:")
+    for r in removed:
+        print(f"  - {r}")
+    print(f"\n✓ Matéria removida: {post_path.name}")
+    return 0
+
+
+def update_post_frontmatter_image(post_path: Path, image_info: dict) -> bool:
+    """Reescreve só as 4 linhas de imagem (image/image_credit_name/
+    image_credit_url/image_provider) no frontmatter TOML de um post já
+    publicado, preservando tudo o mais (título, data, categorias, corpo
+    etc. -- ver write_post() pro formato original) -- usado pelo modo de
+    troca de imagem (run_replace_image_mode()). Devolve True se
+    conseguiu, False se o frontmatter não tinha as 4 chaves esperadas
+    (formato inesperado/arquivo corrompido -- não arrisca gravar
+    meio-atualizado)."""
+    text = post_path.read_text(encoding="utf-8")
+    match = _FRONTMATTER_PATTERN.match(text)
+    if not match:
+        return False
+    fm_block = match.group(1)
+
+    def esc(s: str) -> str:
+        return str(s).replace('"', "'")
+
+    new_values = {
+        "image": image_info.get("url", ""),
+        "image_credit_name": image_info.get("credit_name", ""),
+        "image_credit_url": image_info.get("credit_url", ""),
+        "image_provider": image_info.get("provider", ""),
+    }
+
+    lines = fm_block.split("\n")
+    seen_keys: set[str] = set()
+    for i, line in enumerate(lines):
+        for key, value in new_values.items():
+            if line.startswith(f"{key} = "):
+                lines[i] = f'{key} = "{esc(value)}"'
+                seen_keys.add(key)
+                break
+
+    if seen_keys != set(new_values):
+        return False
+
+    new_fm_block = "\n".join(lines)
+    new_text = text[: match.start(1)] + new_fm_block + text[match.end(1):]
+    post_path.write_text(new_text, encoding="utf-8")
+    return True
+
+
+def run_replace_image_mode(article_url: str, image_source: str) -> int:
+    """Modo troca de imagem (env REPLACE_IMAGE_URL/REPLACE_IMAGE_SOURCE):
+    troca a imagem principal (capa) de uma matéria já publicada pela
+    informada em `image_source` (link http(s) ou arquivo local) --
+    reaproveita a mesma lógica de carregamento/variação por IA/crédito do
+    modo manual (build_manual_image_info()), só que aplicada a um post
+    que já existe em vez de uma matéria nova.
+
+    NÃO mexe nos cards de Stories já gerados (se a matéria já tinha
+    cards, eles continuam com a imagem antiga) -- trocar as imagens dos
+    cards exigiria regerar os cards inteiros (novos textos, novo render),
+    o que está fora do escopo deste modo; ver o modo manual
+    (MANUAL_URLS + MANUAL_IMAGES) se quiser controlar a imagem dos cards
+    de uma matéria nova desde o início."""
+    print(f"Modo troca de imagem: procurando matéria de {article_url}")
+    post_path = find_post_by_url(article_url)
+    if post_path is None:
+        print(f"Não encontrei nenhuma matéria com esse link em {POSTS_DIR}.", file=sys.stderr)
+        return 1
+    print(f"  matéria encontrada: {post_path.name}")
+
+    print(f"  carregando nova imagem: {image_source}")
+    image_info, _extra_paths_ignoradas = build_manual_image_info([image_source])
+    if image_info is None:
+        print(f"Não consegui carregar/validar {image_source} como imagem.", file=sys.stderr)
+        return 1
+    print(f"  ok ({image_info.get('provider', '?')})")
+
+    old_fm = _read_post_frontmatter(post_path) or {}
+    old_image_url = old_fm.get("image") or ""
+
+    if not update_post_frontmatter_image(post_path, image_info):
+        print(f"Não consegui atualizar o frontmatter de {post_path.name} (formato inesperado).", file=sys.stderr)
+        return 1
+
+    if (
+        old_image_url
+        and old_image_url.startswith(GENERATED_IMAGES_URL_PREFIX)
+        and old_image_url != image_info.get("url")
+    ):
+        still_referenced = any(
+            old_image_url in other.read_text(encoding="utf-8", errors="ignore")
+            for other in POSTS_DIR.glob("*.md")
+        )
+        if not still_referenced:
+            old_path = ROOT / "site" / "static" / old_image_url.lstrip("/")
+            if old_path.exists():
+                old_path.unlink()
+                print(f"  imagem antiga removida: {old_image_url}")
+
+    print(f"\n✓ Imagem da matéria atualizada: {post_path.name}")
+    return 0
+
+
 def main() -> int:
     POSTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    delete_url = os.environ.get("DELETE_URL", "").strip()
+    if delete_url:
+        return run_delete_mode(delete_url)
+
+    replace_image_url = os.environ.get("REPLACE_IMAGE_URL", "").strip()
+    replace_image_source = os.environ.get("REPLACE_IMAGE_SOURCE", "").strip()
+    if replace_image_url and replace_image_source:
+        return run_replace_image_mode(replace_image_url, replace_image_source)
 
     manual_urls_raw = os.environ.get("MANUAL_URLS", "").strip()
     if manual_urls_raw:

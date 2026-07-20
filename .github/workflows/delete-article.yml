@@ -1,0 +1,85 @@
+name: Excluir matéria (por link)
+
+# Workflow separado dos outros: apaga uma matéria já publicada a partir do
+# link dela (post, página de cards de Stories se houver, e as imagens
+# geradas associadas, desde que nenhuma outra matéria ainda as use). Não
+# mexe em pipeline/seen.json de propósito — apagar uma matéria não deve
+# fazer o funil automático tentar publicá-la de novo sozinho na próxima
+# rodada. Ver DELETE_URL / run_delete_mode() em pipeline/generate.py.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: >-
+          Link da matéria a excluir (ex.:
+          https://brgrid.com.br/2026/07/titulo-da-materia/).
+        required: true
+        type: string
+
+# necessário para o job conseguir dar push da exclusão
+permissions:
+  contents: write
+
+concurrency:
+  group: atualizar-noticias
+  cancel-in-progress: false
+
+jobs:
+  excluir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependências
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Excluir matéria
+        env:
+          DELETE_URL: ${{ inputs.url }}
+        run: python pipeline/generate.py
+
+      - name: Commit e push
+        run: |
+          git config user.name  "news-bot"
+          git config user.email "news-bot@users.noreply.github.com"
+          git add -A -- site/content/posts site/content/cards site/static/images/ia site/static/images/cards
+          if git diff --cached --quiet; then
+            echo "Nada pra excluir (link não encontrado, ou a matéria já tinha sido removida)."
+          else
+            git commit -m "Excluir matéria ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git push
+          fi
+
+      - name: Instalar Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.128.0"
+          extended: true
+
+      - name: Build do site
+        working-directory: site
+        run: hugo --gc --minify
+
+      - name: Garantir que o projeto existe no Cloudflare Pages
+        # "wrangler pages deploy" não cria o projeto sozinho em ambiente não
+        # interativo. Depois da primeira vez, a API só retorna "já existe",
+        # que é ignorado de propósito (|| true).
+        run: |
+          curl -s -o /dev/null -X POST "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"portal-noticias","production_branch":"main"}' || true
+
+      - name: Deploy no Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site/public --project-name=portal-noticias --branch=main

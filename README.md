@@ -409,6 +409,43 @@ Ver env `MANUAL_URLS`/`MANUAL_IMAGES`, funções `run_manual_mode()` e
 `build_manual_image_info()` em `pipeline/generate.py`, e o workflow
 `.github/workflows/manual-article.yml`.
 
+### 6. (Opcional) Excluir uma matéria pelo link
+**Actions → "Excluir matéria (por link)" → Run workflow**, campo
+`url` com o link da matéria publicada. Apaga o post, a página de
+cards de Stories (se houver) e as imagens geradas associadas (capa
+e/ou cards) — só apaga uma imagem se nenhuma OUTRA matéria ainda a
+referenciar (checagem de segurança; ver `run_delete_mode()`). NÃO
+mexe em `pipeline/seen.json`: apagar uma matéria não faz o funil
+automático tentar publicá-la de novo sozinho — se quiser isso, é um
+passo à parte. Esse workflow não chama nenhuma API de LLM/imagem,
+então não precisa das chaves de API configuradas nele.
+
+O link é casado pelo SLUG (o último trecho da URL) contra os
+arquivos em `site/content/posts/` — se não achar uma correspondência
+EXATA, a exclusão é cancelada (retorna erro) em vez de arriscar
+apagar a matéria errada. Ver `find_post_by_url()`/`DELETE_URL` em
+`pipeline/generate.py` e o workflow
+`.github/workflows/delete-article.yml`.
+
+### 7. (Opcional) Trocar a imagem principal de uma matéria já publicada
+**Actions → "Trocar imagem da matéria (por link)" → Run workflow**,
+campos `url` (a matéria) e `image` (link da nova foto de capa). Troca
+só a imagem principal do post (frontmatter `image`/`image_credit_*`),
+sem tocar em mais nada — título, corpo, categorias etc. continuam
+iguais. A nova imagem passa pela mesma variação por IA de sempre se
+`GEMINI_API_KEY` estiver configurada (mesmo fallback pra imagem
+original se a API falhar). Se a imagem antiga não for mais usada por
+nenhuma outra matéria, o arquivo antigo em `site/static/images/ia/`
+é removido.
+
+**Não mexe nos cards de Stories já gerados** — se a matéria já tinha
+cards, eles continuam com a imagem antiga (trocar as imagens dos
+cards exigiria regerar os cards inteiros, com textos e tudo — fora
+do escopo deste modo). Ver env `REPLACE_IMAGE_URL`/
+`REPLACE_IMAGE_SOURCE`, função `run_replace_image_mode()` em
+`pipeline/generate.py`, e o workflow
+`.github/workflows/replace-article-image.yml`.
+
 ## Rodar localmente (opcional)
 
 ```bash
@@ -449,6 +486,8 @@ cd site && hugo server
 | Cache HTTP (Cache-Control) das imagens de matéria | `site/static/_headers` (padrão do Cloudflare Pages já cobre HTML/CSS/JS) |
 | Gerar matéria manual a partir de link(s) específico(s) | workflow `manual-article.yml` (campo `urls`) ou env `MANUAL_URLS` local |
 | Imagem manual da matéria (capa + extras pros cards) | campo `images` do workflow manual, ou env `MANUAL_IMAGES` local |
+| Excluir matéria pelo link | workflow `delete-article.yml` (campo `url`) ou env `DELETE_URL` local |
+| Trocar imagem principal de matéria já publicada | workflow `replace-article-image.yml` (campos `url`/`image`) ou envs `REPLACE_IMAGE_URL`/`REPLACE_IMAGE_SOURCE` locais |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.

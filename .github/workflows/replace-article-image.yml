@@ -1,0 +1,95 @@
+name: Trocar imagem da matéria (por link)
+
+# Workflow separado dos outros: troca a imagem PRINCIPAL (capa) de uma
+# matéria já publicada pela informada no campo "image", sem mexer em mais
+# nada do post (título, corpo, categorias etc.). Reaproveita a mesma
+# variação por IA / crédito do modo manual (ver MANUAL_IMAGES). Não mexe
+# nos cards de Stories já gerados, se a matéria tiver — trocar as imagens
+# dos cards exigiria regerar os cards inteiros, fora do escopo daqui. Ver
+# REPLACE_IMAGE_URL / REPLACE_IMAGE_SOURCE / run_replace_image_mode() em
+# pipeline/generate.py.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: >-
+          Link da matéria cuja imagem principal você quer trocar (ex.:
+          https://brgrid.com.br/2026/07/titulo-da-materia/).
+        required: true
+        type: string
+      image:
+        description: >-
+          Link da nova imagem de capa (só link funciona aqui; não dá pra
+          anexar arquivo num workflow manual).
+        required: true
+        type: string
+
+# necessário para o job conseguir dar push da troca de imagem
+permissions:
+  contents: write
+
+concurrency:
+  group: atualizar-noticias
+  cancel-in-progress: false
+
+jobs:
+  trocar-imagem:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependências
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Trocar imagem da matéria
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          REPLACE_IMAGE_URL: ${{ inputs.url }}
+          REPLACE_IMAGE_SOURCE: ${{ inputs.image }}
+        run: python pipeline/generate.py
+
+      - name: Commit e push
+        run: |
+          git config user.name  "news-bot"
+          git config user.email "news-bot@users.noreply.github.com"
+          git add -A -- site/content/posts site/static/images/ia
+          if git diff --cached --quiet; then
+            echo "Nada pra atualizar (link da matéria não encontrado, ou imagem inválida)."
+          else
+            git commit -m "Trocar imagem da matéria ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git push
+          fi
+
+      - name: Instalar Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.128.0"
+          extended: true
+
+      - name: Build do site
+        working-directory: site
+        run: hugo --gc --minify
+
+      - name: Garantir que o projeto existe no Cloudflare Pages
+        # "wrangler pages deploy" não cria o projeto sozinho em ambiente não
+        # interativo. Depois da primeira vez, a API só retorna "já existe",
+        # que é ignorado de propósito (|| true).
+        run: |
+          curl -s -o /dev/null -X POST "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"portal-noticias","production_branch":"main"}' || true
+
+      - name: Deploy no Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site/public --project-name=portal-noticias --branch=main
