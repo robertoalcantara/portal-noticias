@@ -160,6 +160,22 @@ testado (ver `pipeline/generate.py`, funções `cluster_and_classify`,
 `rewrite_with_claude`, `factcheck_with_claude`) para qualquer fonte futura
 que precisar de uma regra própria.
 
+### Contexto de matérias já publicadas (evita notícia redundante/superada)
+Antes de agrupar/classificar as manchetes novas de cada rodada, o pipeline
+lê as matérias já publicadas em `site/content/posts/` nas últimas
+`RECENT_CONTEXT_WINDOW_HOURS` horas (padrão 72h, teto de
+`RECENT_CONTEXT_MAX_ITEMS` matérias, padrão 60 — ver
+`load_recent_published_context()` em `pipeline/generate.py`) e passa essa
+lista (título, categoria, há quanto tempo) como um bloco de CONTEXTO à
+parte no início do prompt de `cluster_and_classify`. A regra 6 do
+`CLUSTER_SYSTEM_PROMPT` instrui o modelo a marcar como `"DESCARTAR"`
+qualquer manchete nova que cubra uma etapa ANTERIOR do MESMO evento que
+uma matéria já publicada (mais recente e mais avançada) já cobre — por
+exemplo, não faz sentido publicar o resultado da classificação de uma
+etapa depois que o resultado da corrida daquela mesma etapa já saiu. O
+modelo só descarta por esse motivo quando dá pra confirmar que é o mesmo
+evento numa fase mais avançada; na dúvida, não descarta.
+
 ### Imagens: variação por IA da imagem-fonte (única fonte de imagem)
 `get_ai_variation_image` (em `pipeline/generate.py`) usa a própria imagem
 da matéria no site de origem: baixa essa imagem e pede ao Gemini (modelo
@@ -341,6 +357,7 @@ cd site && hugo server
 | Modelo de geração dos textos dos cards de Stories | env `CARDS_MODEL` (padrão: `claude-haiku-4-5-20251001`, ignorado se DeepSeek ativo) |
 | Tom / regras do texto | `SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Regras de agrupamento por tema | `CLUSTER_SYSTEM_PROMPT` em `pipeline/generate.py` |
+| Contexto de matérias já publicadas (evita redundância) | env `RECENT_CONTEXT_WINDOW_HOURS` (padrão 72h) e `RECENT_CONTEXT_MAX_ITEMS` (padrão 60) em `pipeline/generate.py` |
 | Regras de checagem de fatos | `FACTCHECK_SYSTEM_PROMPT` em `pipeline/generate.py` |
 | Nome e visual do site | `site/hugo.toml` e `site/static/css/style.css` |
 | Prompt da variação de imagem por IA | `IMAGE_VARIATION_PROMPT` em `pipeline/generate.py` |

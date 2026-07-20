@@ -26,6 +26,13 @@ Variáveis de ambiente:
   CLUSTER_MODEL      (opcional, padrão: claude-haiku-4-5-20251001 — agrupar/classificar)
   MAX_PER_FEED       (opcional, padrão: 4 — manchetes novas por fonte/rodada)
   MAX_SOURCE_CHARS   (opcional, padrão: 6000 — corte de CADA texto-fonte)
+  RECENT_CONTEXT_WINDOW_HOURS (opcional, padrão: 72 — janela de matérias já
+                     publicadas usada como contexto no agrupamento, pra não
+                     publicar nada redundante/já superado por notícia mais
+                     recente do mesmo evento)
+  RECENT_CONTEXT_MAX_ITEMS    (opcional, padrão: 60 — teto de matérias
+                     recentes incluídas nesse contexto, pra não estourar o
+                     tamanho do prompt em rodadas com muito histórico)
   DRY_RUN            (opcional, "1" para não chamar a API — usa texto de teste)
   GEMINI_API_KEY      (obrigatória para gerar imagem — sem ela, ou se a
                        matéria-fonte não tiver imagem, ou se a chamada
@@ -54,6 +61,12 @@ import os
 import re
 import sys
 import urllib.request
+
+try:
+    import tomllib  # stdlib a partir do Python 3.11 (o workflow usa 3.12)
+except ModuleNotFoundError:  # pragma: no cover - só acontece em Python <3.11
+    import tomli as tomllib  # type: ignore[no-redef]
+
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from html import unescape as html_unescape
@@ -91,6 +104,8 @@ CLUSTER_MODEL = os.environ.get("CLUSTER_MODEL", "claude-haiku-4-5-20251001")
 CARDS_MODEL = os.environ.get("CARDS_MODEL", "claude-haiku-4-5-20251001")
 MAX_PER_FEED = int(os.environ.get("MAX_PER_FEED", "4"))
 MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
+RECENT_CONTEXT_WINDOW_HOURS = int(os.environ.get("RECENT_CONTEXT_WINDOW_HOURS", "72"))
+RECENT_CONTEXT_MAX_ITEMS = int(os.environ.get("RECENT_CONTEXT_MAX_ITEMS", "60"))
 DRY_RUN = os.environ.get("DRY_RUN") == "1"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
@@ -258,6 +273,19 @@ Tarefas:
    a regra da fonte dela, NÃO a inclua em nenhum grupo — trate como se ela
    não existisse na lista, mesmo que o fato em si seja relevante para o
    escopo do site.
+6. Você também vai receber, à parte, uma lista de MATÉRIAS JÁ PUBLICADAS
+   pelo próprio site recentemente (título, categoria, há quanto tempo).
+   Use isso como CONTEXTO pra não publicar nada redundante ou já
+   superado: se uma manchete nova cobre uma etapa ANTERIOR do MESMO
+   evento/fato que uma matéria já publicada (mais recente e mais
+   avançada) já cobre — por exemplo, uma manchete sobre o resultado da
+   CLASSIFICAÇÃO quando já publicamos o resultado da CORRIDA daquela
+   mesma etapa, ou uma manchete de treino livre quando já publicamos a
+   classificação daquela mesma etapa — marque o grupo dela como
+   "DESCARTAR": a informação já está desatualizada e não agrega nada ao
+   leitor que já viu a notícia mais recente. Só descarte por esse motivo
+   quando der pra confirmar que é o MESMO evento (mesmo circuito/etapa/
+   categoria) numa fase mais avançada — na dúvida, não descarte.
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem crases):
 {{
@@ -420,6 +448,84 @@ def save_seen(seen: set[str]) -> None:
     SEEN_FILE.write_text(
         json.dumps(sorted(seen), ensure_ascii=False, indent=0), encoding="utf-8"
     )
+
+
+# --------------------------------------------------------------------------
+# Contexto: matérias já publicadas (pra não gerar notícia redundante/já
+# superada — ex.: publicar a classificação depois que a corrida já saiu)
+# --------------------------------------------------------------------------
+
+_FRONTMATTER_PATTERN = re.compile(r"^\+\+\+\n(.*?)\n\+\+\+\n", re.S)
+
+
+def _read_post_frontmatter(path: Path) -> dict | None:
+    """Lê e devolve o frontmatter TOML (entre os delimitadores +++) de um
+    arquivo de matéria já publicada em site/content/posts/. Devolve None se
+    não conseguir ler/parsear — um post com formato inesperado não deve
+    derrubar a coleta de contexto, só é ignorado."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        return None
+    match = _FRONTMATTER_PATTERN.match(text)
+    if not match:
+        return None
+    try:
+        return tomllib.loads(match.group(1))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def load_recent_published_context(
+    now: datetime,
+    window_hours: int = RECENT_CONTEXT_WINDOW_HOURS,
+    max_items: int = RECENT_CONTEXT_MAX_ITEMS,
+) -> list[dict]:
+    """Lê as matérias já publicadas em site/content/posts/ dentro da janela
+    de tempo recente, pra servir de CONTEXTO no agrupamento/classificação
+    (ver CLUSTER_SYSTEM_PROMPT, regra 6): o modelo precisa saber o que o
+    site JÁ publicou sobre um evento pra não gerar uma matéria redundante
+    ou já superada (ex.: publicar a classificação de uma etapa depois que
+    o resultado da corrida daquela mesma etapa já saiu). Devolve uma lista
+    de {"titulo", "categoria", "horas_atras"}, mais recentes primeiro,
+    limitada a `max_items` pra não estourar o tamanho do prompt em rodadas
+    com muito histórico publicado."""
+    if not POSTS_DIR.exists():
+        return []
+    cutoff = now - timedelta(hours=window_hours)
+    items = []
+    for path in POSTS_DIR.glob("*.md"):
+        fm = _read_post_frontmatter(path)
+        if not fm:
+            continue
+        date_raw = fm.get("date")
+        date = date_raw if isinstance(date_raw, datetime) else None
+        if date is None and date_raw:
+            try:
+                date = datetime.fromisoformat(str(date_raw))
+            except Exception:  # noqa: BLE001
+                continue
+        if date is None:
+            continue
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=timezone.utc)
+        if date < cutoff:
+            continue
+        categories = fm.get("categories") or []
+        items.append(
+            {
+                "titulo": fm.get("title", ""),
+                "categoria": categories[0] if categories else "",
+                "date": date,
+            }
+        )
+    items.sort(key=lambda it: it["date"], reverse=True)
+    items = items[:max_items]
+    for it in items:
+        horas = max(0, round((now - it["date"]).total_seconds() / 3600))
+        it["horas_atras"] = horas
+        del it["date"]
+    return items
 
 
 # --------------------------------------------------------------------------
@@ -838,10 +944,27 @@ def call_llm(system: str, user_content: str, max_tokens: int, anthropic_model: s
     return result
 
 
-def cluster_and_classify(candidates: list[dict]) -> list[dict]:
-    """Agrupa candidatos pelo mesmo fato e classifica cada grupo."""
+def cluster_and_classify(candidates: list[dict], recent_context: list[dict] | None = None) -> list[dict]:
+    """Agrupa candidatos pelo mesmo fato e classifica cada grupo.
+
+    `recent_context` (ver load_recent_published_context) é a lista de
+    matérias já publicadas recentemente pelo site — passada como um bloco
+    à parte no início do prompt, pra o modelo aplicar a regra 6 do
+    CLUSTER_SYSTEM_PROMPT (não publicar nada redundante/já superado por
+    notícia mais recente do mesmo evento)."""
     if DRY_RUN:
         return [{"ids": [i], "categoria": ALLOWED_CATEGORIES[0]} for i in range(len(candidates))]
+
+    blocks = []
+    if recent_context:
+        context_lines = [
+            f"- [{it['categoria']}] {it['titulo']} (publicada há {it['horas_atras']}h)"
+            for it in recent_context
+        ]
+        blocks.append(
+            "MATÉRIAS JÁ PUBLICADAS PELO SITE RECENTEMENTE (contexto — ver regra 6):\n"
+            + "\n".join(context_lines)
+        )
 
     lines = []
     for i, c in enumerate(candidates):
@@ -850,7 +973,8 @@ def cluster_and_classify(candidates: list[dict]) -> list[dict]:
         if c.get("extra_instructions"):
             line += f" | regra da fonte: {c['extra_instructions']}"
         lines.append(line)
-    user_content = "\n".join(lines)
+    blocks.append("MANCHETES NOVAS DESTA RODADA (agrupar/classificar):\n" + "\n".join(lines))
+    user_content = "\n\n---\n\n".join(blocks)
 
     raw = call_llm(CLUSTER_SYSTEM_PROMPT, user_content, 4096, CLUSTER_MODEL)
     try:
@@ -1489,9 +1613,17 @@ def main() -> int:
         print("Nada novo. Concluído.")
         return 0
 
+    now = datetime.now(timezone.utc)
+    recent_context = load_recent_published_context(now)
+    print(
+        f"Contexto: {len(recent_context)} matéria(s) publicada(s) nas últimas "
+        f"{RECENT_CONTEXT_WINDOW_HOURS}h consideradas (evita publicar notícia "
+        f"redundante/já superada, ex.: classificação depois do resultado da corrida)"
+    )
+
     print(f"\nAgrupando e classificando manchetes ({active_text_model(CLUSTER_MODEL)})...")
     try:
-        groups = cluster_and_classify(candidates)
+        groups = cluster_and_classify(candidates, recent_context)
     except Exception as exc:  # noqa: BLE001
         print(f"erro ao agrupar/classificar: {exc}", file=sys.stderr)
         # NÃO marca como visto: falha no agrupamento é normalmente transitória
