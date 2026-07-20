@@ -450,24 +450,47 @@ def entry_date_from_struct(struct_time) -> datetime:
     return datetime.now(timezone.utc)
 
 
-def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
+def _empty_collect_stats() -> dict:
+    """Contadores devolvidos por collect_rss_candidates/collect_list_candidates
+    junto com a lista de candidatos — usados por collect_all_candidates pra
+    imprimir um raio-x detalhado do que aconteceu em CADA fonte (pedido do
+    dono do projeto: visão completa de quantas manchetes foram lidas, quantas
+    já eram conhecidas, quantas foram descartadas e por quê, etc.)."""
+    return {
+        "lidas": 0,
+        "ja_conhecidas": 0,
+        "falha_download_ou_extracao": 0,
+        "texto_curto": 0,
+        "descartadas_data": 0,
+        "nao_processadas_por_limite": 0,
+        "novas": 0,
+    }
+
+
+def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> tuple[list[dict], dict]:
     name, url = feed_cfg["name"], feed_cfg["url"]
     extra_instructions = feed_cfg.get("extra_instructions")
+    stats = _empty_collect_stats()
     try:
         parsed = feedparser.parse(url)
     except Exception as exc:  # noqa: BLE001
         print(f"  erro ao ler o feed: {exc}", file=sys.stderr)
-        return []
+        return [], stats
     if parsed.bozo and not parsed.entries:
         print(f"  feed vazio ou inválido ({url})", file=sys.stderr)
-        return []
+        return [], stats
 
+    stats["lidas"] = len(parsed.entries)
     out = []
-    for entry in parsed.entries:
+    for i, entry in enumerate(parsed.entries):
         if len(out) >= MAX_PER_FEED:
+            stats["nao_processadas_por_limite"] = len(parsed.entries) - i
             break
         link = entry.get("link")
-        if not link or link in seen:
+        if not link:
+            continue
+        if link in seen:
+            stats["ja_conhecidas"] += 1
             continue
         title = entry.get("title", "Sem título")
         summary = entry.get("summary", "") or entry.get("description", "")
@@ -475,6 +498,7 @@ def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
             entry.get("published_parsed") or entry.get("updated_parsed")
         )
         if is_source_date_stale(date):
+            stats["descartadas_data"] += 1
             print(f"    descartado (>{MAX_SOURCE_DATE_AGE_DAYS}d, {date.date()}): {title[:70]}")
             seen.add(link)
             continue
@@ -488,24 +512,26 @@ def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
                 "date": date,
             }
         )
-    return out
+    stats["novas"] = len(out)
+    return out, stats
 
 
-def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
+def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> tuple[list[dict], dict]:
     """Para sites sem RSS: lê a página de listagem e extrai links de matéria."""
     name = feed_cfg["name"]
     list_url = feed_cfg["list_url"]
     link_contains = feed_cfg["link_contains"]
     extra_instructions = feed_cfg.get("extra_instructions")
+    stats = _empty_collect_stats()
 
     try:
         downloaded = trafilatura.fetch_url(list_url)
     except Exception as exc:  # noqa: BLE001
         print(f"  erro ao baixar listagem ({exc})", file=sys.stderr)
-        return []
+        return [], stats
     if not downloaded:
         print(f"  listagem vazia ({list_url})", file=sys.stderr)
-        return []
+        return [], stats
 
     hrefs = re.findall(r'href="([^"]+)"', downloaded)
     links: list[str] = []
@@ -518,22 +544,28 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
             continue
         seen_in_page.add(absolute)
         links.append(absolute)
+    stats["lidas"] = len(links)
 
     out = []
-    for link in links:
+    for i, link in enumerate(links):
         if len(out) >= MAX_PER_FEED:
+            stats["nao_processadas_por_limite"] = len(links) - i
             break
         if link in seen:
+            stats["ja_conhecidas"] += 1
             continue
         try:
             article_html = trafilatura.fetch_url(link)
             if not article_html:
+                stats["falha_download_ou_extracao"] += 1
                 continue
             data = trafilatura.bare_extraction(article_html, with_metadata=True)
         except Exception as exc:  # noqa: BLE001
             print(f"    aviso: falha ao ler {link} ({exc})", file=sys.stderr)
+            stats["falha_download_ou_extracao"] += 1
             continue
         if not data:
+            stats["falha_download_ou_extracao"] += 1
             continue
         # trafilatura pode devolver um dict OU um objeto Document, dependendo
         # da versão/parâmetros — trata os dois casos.
@@ -546,6 +578,7 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
             title = getattr(data, "title", None)
             raw_date = getattr(data, "date", None)
         if not text or len(text) < 120:
+            stats["texto_curto"] += 1
             continue
         title = title or link
         date = datetime.now(timezone.utc)
@@ -555,6 +588,7 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
             except Exception:  # noqa: BLE001
                 pass
         if is_source_date_stale(date):
+            stats["descartadas_data"] += 1
             print(f"    descartado (>{MAX_SOURCE_DATE_AGE_DAYS}d, {date.date()}): {title[:70]}")
             seen.add(link)
             continue
@@ -570,19 +604,53 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> list[dict]:
                 "_source_html": article_html,
             }
         )
-    return out
+    stats["novas"] = len(out)
+    return out, stats
 
 
 def collect_all_candidates(feeds: list[dict], seen: set[str]) -> list[dict]:
+    """Coleta manchetes de todas as fontes, imprimindo um raio-x detalhado
+    de cada uma (quantas foram lidas, quantas já eram conhecidas, quantas
+    foram descartadas e por quê, quantas ficaram de fora por causa do
+    limite MAX_PER_FEED) e um resumo agregado no final."""
     candidates = []
+    totals = _empty_collect_stats()
     for feed_cfg in feeds:
-        print(f"\n== {feed_cfg['name']} ==")
-        if feed_cfg.get("type") == "list":
-            found = collect_list_candidates(feed_cfg, seen)
+        is_list = feed_cfg.get("type") == "list"
+        print(f"\n== {feed_cfg['name']} ({'raspagem de listagem' if is_list else 'RSS'}) ==")
+        if is_list:
+            found, stats = collect_list_candidates(feed_cfg, seen)
         else:
-            found = collect_rss_candidates(feed_cfg, seen)
-        print(f"  {len(found)} manchete(s) nova(s)")
+            found, stats = collect_rss_candidates(feed_cfg, seen)
+
+        rotulo_lidas = "links encontrados na listagem" if is_list else "manchetes no feed"
+        print(f"  {rotulo_lidas}:              {stats['lidas']}")
+        print(f"  já conhecidas (seen.json):   {stats['ja_conhecidas']}")
+        if is_list:
+            print(f"  falha ao baixar/extrair:     {stats['falha_download_ou_extracao']}")
+            print(f"  texto curto demais (<120c):  {stats['texto_curto']}")
+        print(f"  descartadas (data antiga):   {stats['descartadas_data']}")
+        if stats["nao_processadas_por_limite"]:
+            print(
+                f"  não processadas (limite de {MAX_PER_FEED}/rodada atingido): "
+                f"{stats['nao_processadas_por_limite']}"
+            )
+        print(f"  → novas nesta rodada:        {stats['novas']}")
+
         candidates.extend(found)
+        for key in totals:
+            totals[key] += stats[key]
+
+    print("\n" + "-" * 60)
+    print("Resumo da coleta (todas as fontes)")
+    print("-" * 60)
+    print(f"Lidas no total (feeds + listagens):     {totals['lidas']}")
+    print(f"Já conhecidas (seen.json):               {totals['ja_conhecidas']}")
+    print(f"Falha ao baixar/extrair:                 {totals['falha_download_ou_extracao']}")
+    print(f"Texto curto demais:                      {totals['texto_curto']}")
+    print(f"Descartadas (data antiga):                {totals['descartadas_data']}")
+    print(f"Não processadas (limite por fonte):      {totals['nao_processadas_por_limite']}")
+    print(f"Novas (candidatas à 2ª fase):             {totals['novas']}")
     return candidates
 
 
