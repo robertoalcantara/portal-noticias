@@ -8,9 +8,17 @@ rápidos") —, revisa os fatos com um segundo passe (Haiku, mesma família do
 modelo de geração, ou DeepSeek também) e publica um site estático (**Hugo**)
 que se atualiza sozinho. Sem servidor para manter.
 
-Todas as matérias são assinadas pelo pseudônimo **Bruno Bandeira**, com um
-tom editorial próprio: informa os fatos com precisão, mas com ironia e
-humor — ver `SYSTEM_PROMPT` em `pipeline/generate.py`.
+Todas as matérias são assinadas por um de dois pseudônimos editoriais, que
+o próprio pipeline escolhe automaticamente por matéria (ver
+`select_writer()` em `pipeline/generate.py`):
+- **Bruno Bandeira** — tom irônico e bem-humorado, usado por padrão.
+- **Armando Traço** — tom técnico, objetivo e com humor bem discreto,
+  usado quando o grupo tem 3 ou mais textos-fonte utilizáveis (matéria
+  com material o bastante pra ir mais fundo no lado técnico).
+
+O sistema é feito pra crescer: novos estilos de editor são adicionados
+como um novo `WriterProfile` em `WRITER_PROFILES`, sem mexer em mais
+nada do código.
 
 **Escopo:** Kart, F1, F2, F3, GT3, WEC, IndyCar e NASCAR.
 
@@ -162,13 +170,19 @@ contexto geral (prompt fixo em `IMAGE_VARIATION_PROMPT`). A imagem gerada
 matérias.
 
 Não há mais banco de fotos genérico como reserva — Unsplash e Pexels foram
-removidos de propósito. Se `GEMINI_API_KEY` não estiver configurada, a
+removidos de propósito. Se `GEMINI_API_KEY` não estiver configurada ou a
 matéria-fonte não tiver uma imagem (`og:image`) que o `trafilatura`
-consiga extrair, ou a chamada à API falhar, a matéria fica **sem imagem**
-e o template usa o placeholder colorido por categoria.
+consiga extrair (e nenhuma outra fonte do grupo tiver), a matéria fica
+**sem imagem** e o template usa o placeholder colorido por categoria.
 
-A imagem gerada por IA não tem crédito (não é uma foto de banco, é uma
-variação derivada da imagem da própria matéria-fonte).
+Se a foto original for baixada com sucesso mas a **chamada ao Gemini
+falhar** (rede, quota, resposta inválida etc.), o pipeline usa a **mesma
+foto original da matéria-fonte, sem edição**, em vez de tentar outra
+fonte do grupo ou ficar sem imagem — só nesse caso a foto é creditada ao
+veículo de origem (`image_credit_name`/`image_credit_url`, mostrado na
+página da matéria). A imagem gerada por IA (quando a geração dá certo)
+continua sem crédito, já que é uma variação derivada, não uma foto de
+banco.
 
 Secrets:
 - `GEMINI_API_KEY` — necessária para ter imagem nas matérias. Crie em
@@ -180,8 +194,8 @@ Depois que uma matéria é escrita, o pipeline chama `generate_and_render_cards(
 (em `pipeline/generate.py`) que: (1) pede ao modelo de texto ativo (Claude ou
 DeepSeek, o que estiver configurado — env opcional `CARDS_MODEL`, padrão
 `claude-haiku-4-5-20251001`, ignorado se o DeepSeek estiver ativo) para
-resumir a matéria em **1 a 5 textos curtos** no mesmo tom do Bruno Bandeira,
-um por card; (2) renderiza cada texto como uma imagem 1080×1920 (formato
+resumir a matéria em **1 a 5 textos curtos**, no mesmo tom do escritor que
+assinou aquela matéria (Bruno Bandeira ou Armando Traço), um por card; (2) renderiza cada texto como uma imagem 1080×1920 (formato
 Stories) com **Pillow puro** (`pipeline/cards.py`, sem navegador/headless
 nenhum) usando a própria imagem da matéria como fundo (ou o placeholder
 colorido por categoria, se a matéria não tiver imagem). As fontes usadas
@@ -325,7 +339,7 @@ cd site && hugo server
 | Nome e visual do site | `site/hugo.toml` e `site/static/css/style.css` |
 | Prompt da variação de imagem por IA | `IMAGE_VARIATION_PROMPT` em `pipeline/generate.py` |
 | Modelo de geração/edição de imagem (IA) | env `GEMINI_IMAGE_MODEL` (padrão: `gemini-2.5-flash-image`) |
-| Nome do pseudônimo/assinatura das matérias | `AUTHOR_NAME` em `pipeline/generate.py` (padrão: `Bruno Bandeira`) |
+| Escritores/pseudônimos e critério de escolha | `WRITER_PROFILES` e `select_writer()` em `pipeline/generate.py` (padrão: Bruno Bandeira; Armando Traço a partir de 3 fontes utilizáveis) |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.

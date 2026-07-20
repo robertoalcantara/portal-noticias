@@ -54,6 +54,7 @@ import os
 import re
 import sys
 import urllib.request
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urljoin
@@ -120,11 +121,6 @@ def active_text_model(anthropic_model: str) -> str:
 # (não foram apagadas), só não entram mais matérias novas nela.
 ALLOWED_CATEGORIES = ["Kart", "F1", "F2", "F3", "GT3", "WEC", "Indy", "NASCAR"]
 
-# Pseudônimo fixo usado como assinatura de todas as matérias geradas pelo
-# pipeline (aparece no frontmatter como `author` e é exibido na página da
-# matéria).
-AUTHOR_NAME = "Bruno Bandeira"
-
 # Sentinela que rewrite_with_claude devolve em "titulo" quando os
 # textos-fonte não têm fato suficiente para uma matéria (ex.: página só com
 # navegação/menu do site, sem conteúdo jornalístico). Detectado em main()
@@ -132,6 +128,108 @@ AUTHOR_NAME = "Bruno Bandeira"
 # só com uma nota dizendo que o conteúdo era insuficiente, o que não devia
 # acontecer.
 INSUFFICIENT_CONTENT_TITLE = "CONTEUDO_INSUFICIENTE"
+
+
+# --------------------------------------------------------------------------
+# Escritores (pseudônimos editoriais)
+# --------------------------------------------------------------------------
+#
+# O BRGrid publica sob pseudônimos fixos em vez do nome de uma pessoa real.
+# Cada "escritor" tem sua própria voz/persona (usada na geração da matéria,
+# na revisão de fatos — que precisa PRESERVAR o tom de quem escreveu — e na
+# geração dos cards de Stories) e um critério de quando é escolhido pra
+# assinar uma matéria.
+#
+# Pra adicionar um novo estilo de editor no futuro: crie um novo
+# WriterProfile (author_name, persona, tone_note, min_sources) e insira-o
+# em WRITER_PROFILES na posição certa (ver comentário na lista). Nenhum
+# outro código precisa mudar — build_write_system_prompt/
+# build_factcheck_system_prompt/build_cards_system_prompt e select_writer()
+# já trabalham genericamente com qualquer WriterProfile.
+
+@dataclass(frozen=True)
+class WriterProfile:
+    key: str
+    author_name: str
+    persona: str        # bloco "Você é um editor..." que descreve o estilo
+    tone_note: str       # frase curta descrevendo o tom, usada no factcheck/cards
+    min_sources: int = 0  # nº mínimo de textos-fonte utilizáveis pra ser escolhido
+
+
+BRUNO_BANDEIRA = WriterProfile(
+    key="bruno_bandeira",
+    author_name="Bruno Bandeira",
+    persona="""Você é um editor de notícias experiente, com olhar crítico e senso de humor
+afiado. Sua missão é transformar textos jornalísticos em conteúdos mais
+envolventes, adicionando comentários sarcásticos, ironia elegante e toques
+de humor, sem alterar os fatos ou comprometer a credibilidade da
+informação. Seu estilo deve: preservar a precisão dos acontecimentos e dos
+dados apresentados. Usar sarcasmo inteligente para destacar contradições,
+exageros e situações curiosas. Inserir humor de forma natural, com piadas
+rápidas, analogias criativas e observações espirituosas. Escrever de
+maneira clara, dinâmica e agradável de ler. Criar manchetes e subtítulos
+chamativos, bem-humorados e memoráveis quando solicitado. Evitar o humor
+ofensivo, difamatório ou baseado em ataques pessoais; a piada deve ser da
+situação, não das pessoas. O resultado deve parecer uma reportagem escrita
+por um jornalista experiente que sabe informar com precisão, mas não perde
+a oportunidade de arrancar um sorriso do leitor com uma ironia bem
+colocada. Sempre com precisão em relação aos fatos.""",
+    tone_note="irônico e bem-humorado",
+    min_sources=0,
+)
+
+ARMANDO_TRACO = WriterProfile(
+    key="armando_traco",
+    author_name="Armando Traço",
+    persona="""Você é um editor de notícias experiente e com sólida bagagem técnica em
+automobilismo, com foco em precisão, profundidade e clareza. Sua missão é
+transformar textos jornalísticos em matérias mais completas e tecnicamente
+rigorosas, priorizando os detalhes de engenharia, estratégia, regulamento
+e desempenho por trás do fato. Seu estilo deve: preservar a precisão dos
+acontecimentos e dos dados apresentados, com atenção redobrada a números,
+especificações e termos técnicos. Explicar o "porquê" técnico por trás dos
+fatos (setup, estratégia de pneus e combustível, regulamento, aerodinâmica
+etc.) sempre que os textos-fonte permitirem. Escrever de maneira objetiva,
+direta e bem estruturada, aprofundando cada aspecto relevante da notícia
+em vez de só descrevê-lo por cima. Usar humor e ironia com MUITA
+moderação — no máximo um toque discreto e ocasional, nunca como elemento
+central do texto. Criar manchetes e subtítulos informativos e diretos, sem
+apelo humorístico. O resultado deve parecer uma reportagem escrita por um
+analista técnico experiente, que prioriza informar com profundidade e
+precisão acima de entreter. Sempre com precisão em relação aos fatos.""",
+    tone_note="técnico, objetivo e com humor bem discreto",
+    min_sources=3,
+)
+
+# Ordenada do critério MAIS exigente pro MAIS geral — o último da lista
+# deve sempre ter min_sources=0 (é o "coringa"/fallback de select_writer).
+# Pra inserir um novo escritor entre os dois (ex.: min_sources=1 ou 2),
+# basta colocá-lo na posição correspondente nessa lista.
+WRITER_PROFILES: list[WriterProfile] = [
+    ARMANDO_TRACO,
+    BRUNO_BANDEIRA,
+]
+
+# Mantido por compatibilidade (usado em textos/README como "o pseudônimo
+# padrão do site") — o autor de CADA matéria, na prática, vem de
+# select_writer(), não dessa constante.
+AUTHOR_NAME = BRUNO_BANDEIRA.author_name
+
+
+def select_writer(usable_source_count: int) -> WriterProfile:
+    """Escolhe qual escritor assina a matéria, com base em quantos
+    textos-fonte UTILIZÁVEIS o grupo tem (não a quantidade bruta de
+    manchetes agrupadas) — o que importa é quanto material de verdade dá
+    pra trabalhar, já que é isso que permite (ou não) uma matéria mais
+    longa e tecnicamente detalhada. Percorre WRITER_PROFILES em ordem e
+    devolve o primeiro escritor cujo mínimo de fontes é atendido; como o
+    último da lista tem min_sources=0, sempre existe um fallback (Bruno
+    Bandeira, pro caso de poucas fontes)."""
+    for writer in WRITER_PROFILES:
+        if usable_source_count >= writer.min_sources:
+            return writer
+    return WRITER_PROFILES[-1]  # nunca deveria chegar aqui
+
 
 CLUSTER_SYSTEM_PROMPT = f"""\
 Você organiza a pauta de um portal de notícias de automobilismo chamado BRGrid.
@@ -168,25 +266,12 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem crases):
   ]
 }}"""
 
-SYSTEM_PROMPT = f"""\
-Você é {AUTHOR_NAME}, editor do BRGrid, portal brasileiro de notícias de
-automobilismo focado em: {", ".join(ALLOWED_CATEGORIES)}.
+def build_write_system_prompt(writer: WriterProfile) -> str:
+    return f"""\
+Você é {writer.author_name}, editor do BRGrid, portal brasileiro de notícias
+de automobilismo focado em: {", ".join(ALLOWED_CATEGORIES)}.
 
-Você é um editor de notícias experiente, com olhar crítico e senso de humor
-afiado. Sua missão é transformar textos jornalísticos em conteúdos mais
-envolventes, adicionando comentários sarcásticos, ironia elegante e toques
-de humor, sem alterar os fatos ou comprometer a credibilidade da
-informação. Seu estilo deve: preservar a precisão dos acontecimentos e dos
-dados apresentados. Usar sarcasmo inteligente para destacar contradições,
-exageros e situações curiosas. Inserir humor de forma natural, com piadas
-rápidas, analogias criativas e observações espirituosas. Escrever de
-maneira clara, dinâmica e agradável de ler. Criar manchetes e subtítulos
-chamativos, bem-humorados e memoráveis quando solicitado. Evitar o humor
-ofensivo, difamatório ou baseado em ataques pessoais; a piada deve ser da
-situação, não das pessoas. O resultado deve parecer uma reportagem escrita
-por um jornalista experiente que sabe informar com precisão, mas não perde
-a oportunidade de arrancar um sorriso do leitor com uma ironia bem
-colocada. Sempre com precisão em relação aos fatos.
+{writer.persona}
 
 Vai receber um ou mais textos-fonte (cada um com o nome da fonte) que tratam
 do MESMO fato. Produza UMA matéria ORIGINAL em português do Brasil que
@@ -196,8 +281,7 @@ Regras obrigatórias:
 - Escreva com suas próprias palavras. NÃO copie nem parafraseie frase a
   frase nenhum texto-fonte.
 - Baseie-se apenas nos FATOS presentes nos textos-fonte. Não invente dados,
-  números, aspas, nomes ou nacionalidades — o humor é na forma de contar,
-  nunca no conteúdo.
+  números, aspas, nomes ou nacionalidades.
 - Se houver mais de uma fonte, combine os fatos em uma narrativa única e
   coerente — não escreva "segundo a fonte A... segundo a fonte B...".
 - Se o material for insuficiente para uma matéria de verdade (ex.: os
@@ -208,23 +292,24 @@ Regras obrigatórias:
   demais campos vazios ("linha_fina": "", "tags": [], "corpo_markdown": "").
   O sistema descarta essa resposta automaticamente.
 - A(s) fonte(s) será(ão) creditada(s) pelo sistema; você não precisa citá-las.
-- IMPORTANTE (formatação do JSON): para citação irônica ou ênfase, prefira
-  aspas simples (‘assim’) em vez de aspas duplas — evita quebrar o JSON.
-  Se ainda assim precisar usar aspas duplas DENTRO de um valor de string,
+- IMPORTANTE (formatação do JSON): para citação ou ênfase, prefira aspas
+  simples (‘assim’) em vez de aspas duplas — evita quebrar o JSON. Se
+  ainda assim precisar usar aspas duplas DENTRO de um valor de string,
   escape cada uma delas como \" (barra invertida antes da aspas). Nunca
   deixe uma aspas dupla sem escapar dentro de um valor — isso invalida o
   JSON inteiro e a matéria é perdida.
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem crases), no formato:
 {{
-  "titulo": "título curto, chamativo e no tom bem-humorado descrito acima (ou \"{INSUFFICIENT_CONTENT_TITLE}\" se o material for insuficiente, ver regra acima)",
+  "titulo": "título curto e chamativo, no tom descrito acima (ou \"{INSUFFICIENT_CONTENT_TITLE}\" se o material for insuficiente, ver regra acima)",
   "linha_fina": "uma frase de resumo (o 'dek'), também no mesmo tom",
   "categoria": "uma de: {", ".join(ALLOWED_CATEGORIES)}",
   "tags": ["até 4 tags curtas"],
   "corpo_markdown": "3 a 5 parágrafos em Markdown"
 }}"""
 
-FACTCHECK_SYSTEM_PROMPT = f"""\
+def build_factcheck_system_prompt(writer: WriterProfile) -> str:
+    return f"""\
 Você é o revisor de fatos (fact-checker) do BRGrid, portal de automobilismo.
 Vai receber um ou mais TEXTOS-FONTE originais (rotulados por fonte) e um
 RASCUNHO em português gerado por outro editor a partir deles. Seu trabalho é
@@ -244,12 +329,12 @@ Regras:
   dado não verificado.
 - Corrija o dado errado quando os textos-fonte permitirem confirmar o correto.
 - Não adicione fatos novos que não estavam no rascunho nem nos textos-fonte.
-- O rascunho é escrito num tom irônico/bem-humorado (voz editorial de
-  {AUTHOR_NAME}) — PRESERVE esse tom e a fluidez; corrija o mínimo
+- O rascunho é escrito no tom {writer.tone_note} (voz editorial de
+  {writer.author_name}) — PRESERVE esse tom e a fluidez; corrija o mínimo
   necessário para garantir precisão, sem reescrever o texto do zero e sem
-  remover o humor/sarcasmo ao corrigir um dado. Ajuste só o dado em si
-  (nome, número, resultado etc.), mantendo a piada ou a ironia ao redor
-  dele sempre que possível.
+  descaracterizar o estilo ao corrigir um dado. Ajuste só o dado em si
+  (nome, número, resultado etc.), mantendo o restante do texto como está
+  sempre que possível.
 - Se o rascunho já estiver correto, devolva-o sem alterações.
 - Se, depois de remover/generalizar tudo que não é verificável, sobrar pouco
   ou nenhum fato de verdade (o rascunho vira só generalidades vagas, sem
@@ -259,7 +344,7 @@ Regras:
   ("linha_fina": "", "tags": [], "corpo_markdown": ""), do mesmo jeito que o
   editor faz quando o material de origem já vem insuficiente.
 - IMPORTANTE (formatação do JSON): se usar aspas duplas dentro de um valor
-  de string (para citação ou ironia), escape cada uma delas como \"
+  de string (para citação ou ênfase), escape cada uma delas como \"
   (barra invertida antes da aspas) — nunca deixe uma aspas dupla sem
   escapar dentro de um valor, isso invalida o JSON e a matéria é perdida.
   Prefira aspas simples (‘assim’) quando possível.
@@ -275,10 +360,12 @@ no mesmo formato do rascunho recebido:
 }}"""
 
 
-CARDS_SYSTEM_PROMPT = f"""\
-Você é {AUTHOR_NAME}, editor do BRGrid, adaptando uma matéria já pronta pra
-uma sequência de "cards" de Stories (Instagram) — imagens verticais, uma
-frase de cada vez, que as pessoas passam o dedo pra ler rapidinho.
+def build_cards_system_prompt(writer: WriterProfile) -> str:
+    return f"""\
+Você é {writer.author_name}, editor do BRGrid, adaptando uma matéria já
+pronta pra uma sequência de "cards" de Stories (Instagram) — imagens
+verticais, uma frase de cada vez, que as pessoas passam o dedo pra ler
+rapidinho.
 
 Vai receber a matéria final (título, linha fina, corpo) em JSON. Decida
 quantos cards fazem sentido — ENTRE 1 E 5 — de acordo com o quanto a
@@ -301,9 +388,9 @@ Regras de cada card:
 - O card final fecha convidando a ler a matéria completa (o link/handle
   do site já é adicionado automaticamente por fora — você só escreve a
   frase de fechamento, tipo uma "deixa no ar").
-- Mantenha o tom irônico/bem-humorado de {AUTHOR_NAME}, mas adaptado ao
-  formato rápido de Stories: mais direto, menos elaborado que o corpo da
-  matéria completa.
+- Mantenha o tom {writer.tone_note} de {writer.author_name}, mas adaptado
+  ao formato rápido de Stories: mais direto, menos elaborado que o corpo
+  da matéria completa.
 - IMPORTANTE (formatação do JSON): prefira aspas simples (‘assim’) pra
   citação ou ênfase. Se usar aspas duplas dentro de um card, escape cada
   uma como \" — aspas dupla sem escapar quebra o JSON e os cards são
@@ -706,12 +793,15 @@ def cluster_and_classify(candidates: list[dict]) -> list[dict]:
     return data.get("grupos", [])
 
 
-def rewrite_with_claude(source_blocks: list[tuple[str, str, str | None]]) -> dict:
-    """source_blocks: lista de (nome_da_fonte, texto, instrução_extra). Gera UMA matéria."""
+def rewrite_with_claude(
+    source_blocks: list[tuple[str, str, str | None]], writer: WriterProfile
+) -> dict:
+    """source_blocks: lista de (nome_da_fonte, texto, instrução_extra). Gera
+    UMA matéria na voz do `writer` escolhido (ver select_writer())."""
     if DRY_RUN:
         names = ", ".join(n for n, _, _ in source_blocks)
         return {
-            "titulo": f"[TESTE] Matéria de {names}",
+            "titulo": f"[TESTE:{writer.author_name}] Matéria de {names}",
             "linha_fina": "Matéria de teste gerada em modo DRY_RUN.",
             "categoria": ALLOWED_CATEGORIES[0],
             "tags": ["teste"],
@@ -729,12 +819,15 @@ def rewrite_with_claude(source_blocks: list[tuple[str, str, str | None]]) -> dic
         parts.append(f"{header}\n{text[:MAX_SOURCE_CHARS]}")
     user_content = "\n\n---\n\n".join(parts)
 
-    raw = call_llm(SYSTEM_PROMPT, user_content, 4096, MODEL)
+    raw = call_llm(build_write_system_prompt(writer), user_content, 4096, MODEL)
     return parse_model_json(raw)
 
 
-def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str | None]]) -> dict:
-    """Segunda passada: revisa o rascunho contra os textos-fonte originais."""
+def factcheck_with_claude(
+    article: dict, source_blocks: list[tuple[str, str, str | None]], writer: WriterProfile
+) -> dict:
+    """Segunda passada: revisa o rascunho contra os textos-fonte originais,
+    preservando o tom do MESMO `writer` que escreveu o rascunho."""
     if DRY_RUN:
         return article
 
@@ -749,17 +842,18 @@ def factcheck_with_claude(article: dict, source_blocks: list[tuple[str, str, str
         f"TEXTOS-FONTE:\n{sources_text}\n\n"
         f"RASCUNHO (JSON):\n{json.dumps(article, ensure_ascii=False)}"
     )
-    raw = call_llm(FACTCHECK_SYSTEM_PROMPT, user_content, 4096, FACTCHECK_MODEL)
+    raw = call_llm(build_factcheck_system_prompt(writer), user_content, 4096, FACTCHECK_MODEL)
     return parse_model_json(raw)
 
 
-def generate_card_texts(article: dict) -> list[str]:
-    """Pede ao modelo entre 1 e 5 frases curtas pra virarem cards de Stories
-    (ver CARDS_SYSTEM_PROMPT). Levanta exceção se a resposta vier vazia,
+def generate_card_texts(article: dict, writer: WriterProfile) -> list[str]:
+    """Pede ao modelo entre 1 e 5 frases curtas pra virarem cards de Stories,
+    na voz do MESMO `writer` que escreveu a matéria (ver
+    build_cards_system_prompt). Levanta exceção se a resposta vier vazia,
     malformada ou fora do esperado — quem chama trata isso como não-fatal
     (a matéria é publicada normalmente, só sem cards)."""
     if DRY_RUN:
-        return [f"[TESTE] {article.get('titulo', 'Matéria de teste')}"]
+        return [f"[TESTE:{writer.author_name}] {article.get('titulo', 'Matéria de teste')}"]
 
     user_content = json.dumps(
         {
@@ -770,7 +864,7 @@ def generate_card_texts(article: dict) -> list[str]:
         },
         ensure_ascii=False,
     )
-    raw = call_llm(CARDS_SYSTEM_PROMPT, user_content, 1024, CARDS_MODEL)
+    raw = call_llm(build_cards_system_prompt(writer), user_content, 1024, CARDS_MODEL)
     data = parse_model_json(raw)
     cards = [str(c).strip() for c in data.get("cards", []) if str(c).strip()]
     if not cards:
@@ -1046,12 +1140,20 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
     """Tenta, na ordem das fontes do grupo, gerar uma variação por IA da
     imagem já usada na matéria-fonte. Devolve um dict
     {"url", "credit_name", "credit_url", "provider", "source_image_url",
-    "tokens"} ou None se nenhuma fonte do grupo render uma imagem
-    utilizável — aí a matéria fica sem imagem (o template usa o
-    placeholder colorido por categoria). "source_image_url" é a URL da
-    imagem ORIGINAL da matéria-fonte usada como base; "tokens" é
+    "tokens"} ou None se nenhuma fonte do grupo tiver sequer uma imagem
+    baixável — aí a matéria fica sem imagem (o template usa o placeholder
+    colorido por categoria). "source_image_url" é a URL da imagem ORIGINAL
+    da matéria-fonte usada como base; "tokens" é
     {"prompt", "resposta", "total"} devolvido pela API do Gemini, ou None
-    se a API não informar."""
+    quando não há chamada de geração envolvida.
+
+    Se a foto original foi baixada com sucesso mas a CHAMADA AO GEMINI
+    falhar (rede, quota, resposta inválida etc.), a foto original da
+    matéria-fonte é usada como está (sem variação por IA), com crédito
+    visível ao veículo de origem — em vez de tentar outra fonte ou ficar
+    sem imagem nenhuma. Pedido explícito do dono do projeto: preferir uma
+    foto de verdade (creditada) a um placeholder genérico só porque a
+    geração falhou numa rodada."""
     if DRY_RUN or not GEMINI_API_KEY:
         return None
 
@@ -1074,24 +1176,44 @@ def get_ai_variation_image(group_candidates: list[dict]) -> dict | None:
                 break
         if not downloaded:
             continue
-        image_bytes, mime_type = downloaded
-        image_bytes, mime_type = resize_for_generation(image_bytes, mime_type)
-        variation = generate_image_variation(image_bytes, mime_type)
-        if not variation:
-            continue
-        variation_bytes, out_mime, token_info = variation
-        ext = "png" if "png" in out_mime else "jpg"
+        original_bytes, original_mime = downloaded
+        resized_bytes, resized_mime = resize_for_generation(original_bytes, original_mime)
+        variation = generate_image_variation(resized_bytes, resized_mime)
         digest = hashlib.sha1(link.encode("utf-8")).hexdigest()[:16]
-        filename = f"{digest}.{ext}"
         GENERATED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-        (GENERATED_IMAGES_DIR / filename).write_bytes(variation_bytes)
+
+        if variation:
+            variation_bytes, out_mime, token_info = variation
+            ext = "png" if "png" in out_mime else "jpg"
+            filename = f"{digest}.{ext}"
+            (GENERATED_IMAGES_DIR / filename).write_bytes(variation_bytes)
+            return {
+                "url": f"{GENERATED_IMAGES_URL_PREFIX}/{filename}",
+                "credit_name": "",
+                "credit_url": "",
+                "provider": "IA (variação da imagem da fonte)",
+                "source_image_url": image_url,
+                "tokens": token_info,
+            }
+
+        # Geração por IA falhou, mas já temos a foto original baixada e
+        # validada (passou pelo filtro de tamanho/dimensões em
+        # download_image_bytes) — usa ela direto, com crédito ao veículo.
+        print(
+            f"    aviso: geração por IA falhou pra essa fonte, usando a foto "
+            f"original de {c.get('name', link)} (com crédito)",
+            file=sys.stderr,
+        )
+        ext = "png" if "png" in original_mime else "jpg"
+        filename = f"{digest}-original.{ext}"
+        (GENERATED_IMAGES_DIR / filename).write_bytes(original_bytes)
         return {
             "url": f"{GENERATED_IMAGES_URL_PREFIX}/{filename}",
-            "credit_name": "",
-            "credit_url": "",
-            "provider": "IA (variação da imagem da fonte)",
+            "credit_name": c.get("name", ""),
+            "credit_url": link,
+            "provider": "Foto original da matéria-fonte",
             "source_image_url": image_url,
-            "tokens": token_info,
+            "tokens": None,
         }
     return None
 
@@ -1121,6 +1243,7 @@ def write_post(
     date: datetime,
     image_info: dict | None = None,
     has_cards: bool = False,
+    author_name: str = AUTHOR_NAME,
 ) -> Path:
     filename_base = post_filename_base(article, date)
     path = POSTS_DIR / f"{filename_base}.md"
@@ -1134,7 +1257,7 @@ def write_post(
             "+++",
             f'title = "{esc(article["titulo"])}"',
             f"date = {date:%Y-%m-%dT%H:%M:%SZ}",
-            f'author = "{esc(AUTHOR_NAME)}"',
+            f'author = "{esc(author_name)}"',
             f'summary = "{esc(article.get("linha_fina", ""))}"',
             f'categories = {toml_list([article.get("categoria", ALLOWED_CATEGORIES[0])])}',
             f'tags = {toml_list(article.get("tags", []))}',
@@ -1179,13 +1302,18 @@ def write_cards_page(filename_base: str, article: dict, date: datetime, image_ur
 
 
 def generate_and_render_cards(
-    article: dict, image_info: dict | None, filename_base: str, date: datetime
+    article: dict,
+    image_info: dict | None,
+    filename_base: str,
+    date: datetime,
+    writer: WriterProfile,
 ) -> list[str]:
-    """Gera os textos dos cards (LLM) e renderiza as imagens (Pillow),
-    gravando a página irmã em site/content/cards/. Devolve a lista de URLs
-    das imagens geradas (vazia se algo falhar — ver call sites: isso NUNCA
-    deve impedir a matéria em si de ser publicada)."""
-    texts = generate_card_texts(article)
+    """Gera os textos dos cards (LLM, na voz do MESMO `writer` que escreveu
+    a matéria) e renderiza as imagens (Pillow), gravando a página irmã em
+    site/content/cards/. Devolve a lista de URLs das imagens geradas (vazia
+    se algo falhar — ver call sites: isso NUNCA deve impedir a matéria em
+    si de ser publicada)."""
+    texts = generate_card_texts(article, writer)
 
     background_path = None
     if image_info and image_info.get("url", "").startswith(GENERATED_IMAGES_URL_PREFIX):
@@ -1261,6 +1389,7 @@ def main() -> int:
     n_enviados_cards = 0
     n_cards_gerados = 0
     n_cards_falhou = 0
+    writer_usage: dict[str, int] = {w.key: 0 for w in WRITER_PROFILES}
 
     created = 0
     grouped_ids: set[int] = set()
@@ -1314,9 +1443,15 @@ def main() -> int:
                     seen.add(link)
                 continue
 
+            writer = select_writer(len(source_blocks))
+            writer_usage[writer.key] += 1
             n_enviados_escrita += 1
+            print(
+                f"    escritor escolhido: {writer.author_name} "
+                f"({len(source_blocks)} fonte(s) utilizável(is), mínimo do escritor: {writer.min_sources})"
+            )
             print(f"    escrevendo matéria ({active_text_model(MODEL)})...")
-            article = rewrite_with_claude(source_blocks)
+            article = rewrite_with_claude(source_blocks, writer)
 
             if is_insufficient_content(article):
                 # O editor (rewrite_with_claude) sinalizou que os
@@ -1332,7 +1467,7 @@ def main() -> int:
             n_enviados_factcheck += 1
             print(f"    revisando fatos ({active_text_model(FACTCHECK_MODEL)})...")
             try:
-                article = factcheck_with_claude(article, source_blocks)
+                article = factcheck_with_claude(article, source_blocks, writer)
             except Exception as exc:  # noqa: BLE001
                 n_factcheck_falhou += 1
                 print(f"    aviso: revisão de fatos falhou, publicando rascunho ({exc})", file=sys.stderr)
@@ -1378,7 +1513,9 @@ def main() -> int:
             print(f"    gerando cards de Stories ({active_text_model(CARDS_MODEL)})...")
             card_urls: list[str] = []
             try:
-                card_urls = generate_and_render_cards(article, image_info, filename_base, publish_date)
+                card_urls = generate_and_render_cards(
+                    article, image_info, filename_base, publish_date, writer
+                )
             except Exception as exc:  # noqa: BLE001
                 n_cards_falhou += 1
                 print(f"    aviso: geração de cards falhou, publicando matéria sem cards ({exc})", file=sys.stderr)
@@ -1386,7 +1523,15 @@ def main() -> int:
                 n_cards_gerados += 1
                 print(f"    cards: {len(card_urls)} gerado(s)")
 
-            write_post(article, source_names, links, publish_date, image_info, has_cards=bool(card_urls))
+            write_post(
+                article,
+                source_names,
+                links,
+                publish_date,
+                image_info,
+                has_cards=bool(card_urls),
+                author_name=writer.author_name,
+            )
             created += 1
             print(f"    ✓ publicado: {article.get('titulo', '')[:70]}")
         except Exception as exc:  # noqa: BLE001
@@ -1421,6 +1566,9 @@ def main() -> int:
     print(f"Enviados para gerar cards ({active_text_model(CARDS_MODEL)}): {n_enviados_cards}")
     print(f"  cards gerados com sucesso:                   {n_cards_gerados}")
     print(f"  falha na geração (publicado sem cards):      {n_cards_falhou}")
+    print("Escritor escolhido por matéria:")
+    for w in WRITER_PROFILES:
+        print(f"  {w.author_name} (min. {w.min_sources} fonte(s)): {writer_usage[w.key]}")
     print(f"Matérias publicadas:                   {created}")
     if DEEPSEEK_API_KEY:
         print(f"Chamadas de texto respondidas pelo DeepSeek: {LLM_CALL_STATS['deepseek_ok']}")
