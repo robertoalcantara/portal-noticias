@@ -1651,6 +1651,7 @@ def main() -> int:
     n_cards_gerados = 0
     n_cards_falhou = 0
     writer_usage: dict[str, int] = {w.key: 0 for w in WRITER_PROFILES}
+    published_titles: list[str] = []
 
     created = 0
     grouped_ids: set[int] = set()
@@ -1794,6 +1795,7 @@ def main() -> int:
                 author_name=writer.author_name,
             )
             created += 1
+            published_titles.append(article.get('titulo', ''))
             print(f"    ✓ publicado: {article.get('titulo', '')[:70]}")
         except Exception as exc:  # noqa: BLE001
             print(f"    erro ao gerar/gravar: {exc}", file=sys.stderr)
@@ -1831,6 +1833,10 @@ def main() -> int:
     for w in WRITER_PROFILES:
         print(f"  {w.author_name} (min. {w.min_sources} fonte(s)): {writer_usage[w.key]}")
     print(f"Matérias publicadas:                   {created}")
+    if published_titles:
+        print("Títulos publicados nesta rodada:")
+        for titulo in published_titles:
+            print(f"  - {titulo}")
     if DEEPSEEK_API_KEY:
         print(f"Chamadas de texto respondidas pelo DeepSeek: {LLM_CALL_STATS['deepseek_ok']}")
     print(f"seen.json: {seen_antes} antigo(s) + {seen_depois - seen_antes} novo(s)"

@@ -101,6 +101,23 @@ o tempo todo.
   `wrangler pages deploy`** — em ambiente não-interativo (CI) o wrangler
   não cria o projeto sozinho. O workflow tem um passo `curl` idempotente
   que garante isso a cada rodada (ignora erro de "já existe" com `|| true`).
+- **Cache HTTP: não mexemos no comportamento padrão do Cloudflare Pages
+  para HTML/CSS/JS, de propósito.** Por padrão o Pages já envia
+  `Cache-Control: public, max-age=0, must-revalidate` + `ETag` pra todo
+  asset — isso obriga o navegador a sempre revalidar com o servidor
+  antes de reusar uma cópia em cache, então uma matéria nova/editada
+  nunca fica escondida atrás de cache do navegador. A própria Cloudflare
+  recomenda evitar cache customizado quando o padrão já resolve. O único
+  `_headers` que criamos (`site/static/_headers`, copiado pro `public/`
+  pelo build do Hugo) é pra `/images/ia/*` e `/images/cards/*`
+  (`Cache-Control: public, max-age=31536000, immutable`) — o nome de
+  cada arquivo nessas pastas é derivado de um hash ou de um slug fixo
+  por matéria já publicada (nunca reeditada), então o conteúdo daquele
+  nome nunca muda e dá pra cachear "pra sempre" sem risco de ficar
+  desatualizado. Se quiser confirmar o comportamento ao vivo, inspecione
+  os headers de resposta do site publicado (`curl -I`) — isso não dá
+  pra verificar de dentro deste sandbox porque `api.cloudflare.com` e o
+  domínio publicado do site estão fora da allowlist de rede daqui.
 
 ### Se algo quebrar e você precisar depurar um workflow run
 Ambientes de agente costumam ter acesso de rede restrito e não conseguem
@@ -363,6 +380,7 @@ cd site && hugo server
 | Prompt da variação de imagem por IA | `IMAGE_VARIATION_PROMPT` em `pipeline/generate.py` |
 | Modelo de geração/edição de imagem (IA) | env `GEMINI_IMAGE_MODEL` (padrão: `gemini-2.5-flash-image`) |
 | Escritores/pseudônimos e critério de escolha | `WRITER_PROFILES` e `select_writer()` em `pipeline/generate.py` (padrão: Bruno Bandeira; Armando Traço a partir de 3 fontes utilizáveis) |
+| Cache HTTP (Cache-Control) das imagens de matéria | `site/static/_headers` (padrão do Cloudflare Pages já cobre HTML/CSS/JS) |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.

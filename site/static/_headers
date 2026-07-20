@@ -1,0 +1,21 @@
+# Cache HTTP customizado (Cloudflare Pages lê este arquivo automaticamente).
+#
+# Por padrão, o Cloudflare Pages já envia "Cache-Control: public, max-age=0,
+# must-revalidate" + ETag para TODO asset (ver docs "Serving Pages"). Isso
+# significa que o navegador sempre revalida com o servidor antes de reusar
+# uma cópia em cache — nunca mostra matéria desatualizada por causa de cache
+# do navegador. Por isso não sobrescrevemos nada aqui pra HTML/CSS/JS: o
+# padrão já é o comportamento certo, e a própria Cloudflare recomenda evitar
+# cache customizado quando o padrão já resolve.
+#
+# A única exceção que vale a pena: as imagens das matérias. O nome de cada
+# arquivo é derivado do hash (sha1) do link da matéria-fonte, ou é uma pasta
+# de slug fixo por matéria (cards de Stories) — uma vez publicada, a matéria
+# não é reeditada, então o conteúdo daquele nome de arquivo nunca muda.
+# Dá pra cachear "pra sempre" no navegador sem risco de ficar desatualizado.
+
+/images/ia/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/images/cards/*
+  Cache-Control: public, max-age=31536000, immutable
