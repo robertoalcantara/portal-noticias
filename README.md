@@ -268,6 +268,20 @@ tem `noindex` (não deve aparecer em buscadores — ver `head.html`) e só exist
 um link pra ela na matéria (`Ver cards para Stories →`) quando
 `has_cards = true` no frontmatter do post.
 
+O texto de cada card é sempre branco, sobreposto direto na foto de fundo
+(sem controle sobre o que vai aparecer atrás — a foto muda por matéria).
+Pra garantir legibilidade mesmo contra fotos muito claras, brancas ou com
+muito detalhe (onde texto branco liso quase some), todo texto desenhado em
+`render_card()` (título, marca "BRGrid", handle do rodapé) leva um
+contorno escuro fino (`stroke_width`/`stroke_fill` do próprio
+`ImageDraw.text` do Pillow — desde a 6.2, nada de gambiarra com texto
+duplicado), além do gradiente/véu escuro já existente por cima da foto
+(`_gradient_overlay()`). O contorno é o que resolve o caso realmente
+difícil (fundo bem claro ou uniforme, onde o texto ficava quase invisível);
+o gradiente sozinho não bastava porque, em cards com texto longo (várias
+linhas), a parte de cima do bloco de texto podia cair fora da faixa mais
+escura do gradiente.
+
 ## Estrutura
 
 ```

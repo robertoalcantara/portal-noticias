@@ -35,7 +35,6 @@
           {{ with $hero.Params.summary }}<p class="hero-dek">{{ . }}</p>{{ end }}
           <p class="meta">
             <time datetime="{{ $hero.Date.Format "2006-01-02" }}">{{ printf "%02d %s %d, %02d:%02d" $hero.Date.Day (partial "ptmonth.html" $hero.Date.Month) $hero.Date.Year $hero.Date.Hour $hero.Date.Minute }}</time>
-            {{ with $hero.Params.sources }}<span class="dot">•</span>{{ partial "sourcelabel.html" . }}{{ end }}
           </p>
         </div>
       </section>

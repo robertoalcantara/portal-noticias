@@ -126,7 +126,7 @@ def _gradient_overlay(height_fraction: float = 0.62) -> Image.Image:
             [(0, start_y + y), (CARD_W, start_y + y)], fill=(6, 7, 10, alpha)
         )
     # leve véu por cima de toda a imagem, pra unificar fotos muito claras/escuras
-    ImageDraw.Draw(overlay).rectangle([0, 0, CARD_W, CARD_H], fill=(6, 7, 10, 46))
+    ImageDraw.Draw(overlay).rectangle([0, 0, CARD_W, CARD_H], fill=(6, 7, 10, 64))
     return overlay
 
 
@@ -228,7 +228,14 @@ def render_card(
         ],
         fill=_hex_to_rgb(color_hex),
     )
-    draw.text((margin + 26, brand_y - 2), "BRGrid", font=mark_font, fill="white")
+    draw.text(
+        (margin + 26, brand_y - 2),
+        "BRGrid",
+        font=mark_font,
+        fill="white",
+        stroke_width=2,
+        stroke_fill=(6, 7, 10),
+    )
 
     # chip de categoria (canto superior direito)
     chip_font = _load_font("BarlowCondensed-Bold", 30)
@@ -258,8 +265,16 @@ def render_card(
     block_h = line_h * len(lines)
     text_y0 = CARD_H - footer_zone - block_h - 24
     y = text_y0
+    stroke_w = max(2, round(font.size / 20))
     for line in lines:
-        draw.text((margin, y), line, font=font, fill="white")
+        draw.text(
+            (margin, y),
+            line,
+            font=font,
+            fill="white",
+            stroke_width=stroke_w,
+            stroke_fill=(6, 7, 10),
+        )
         y += line_h
 
     # rodapé: handle do site (ou CTA, decidido por quem chama via `site_handle`)
@@ -269,6 +284,8 @@ def render_card(
         site_handle,
         font=foot_font,
         fill=(255, 255, 255, 220),
+        stroke_width=1,
+        stroke_fill=(6, 7, 10),
     )
 
     return canvas.convert("RGB")
