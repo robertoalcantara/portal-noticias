@@ -112,21 +112,25 @@ def _diagonal_placeholder(color_hex: str) -> Image.Image:
     return base.convert("RGB")
 
 
-def _gradient_overlay(height_fraction: float = 0.62) -> Image.Image:
-    """Gradiente preto transparente -> opaco, da metade pra baixo, pra
-    garantir contraste do texto independente do brilho da foto."""
+def _gradient_overlay(height_fraction: float = 0.72) -> Image.Image:
+    """Gradiente preto transparente -> opaco, de mais da metade pra baixo,
+    pra garantir contraste do texto independente do brilho da foto (sem
+    depender de contorno em volta das letras -- só a foto mais escura ali
+    embaixo)."""
     overlay = Image.new("RGBA", (CARD_W, CARD_H), (0, 0, 0, 0))
     grad_h = round(CARD_H * height_fraction)
     start_y = CARD_H - grad_h
     for y in range(grad_h):
         # curva quadrática: começa bem sutil e fica forte perto do rodapé
         t = y / grad_h
-        alpha = int(235 * (t ** 1.6))
+        alpha = int(245 * (t ** 1.4))
         ImageDraw.Draw(overlay).line(
             [(0, start_y + y), (CARD_W, start_y + y)], fill=(6, 7, 10, alpha)
         )
-    # leve véu por cima de toda a imagem, pra unificar fotos muito claras/escuras
-    ImageDraw.Draw(overlay).rectangle([0, 0, CARD_W, CARD_H], fill=(6, 7, 10, 64))
+    # véu por cima de toda a imagem, pra unificar fotos muito claras/escuras
+    # (mais forte que antes -- é a principal defesa de contraste agora que
+    # não usamos mais contorno no texto)
+    ImageDraw.Draw(overlay).rectangle([0, 0, CARD_W, CARD_H], fill=(6, 7, 10, 92))
     return overlay
 
 
@@ -228,14 +232,7 @@ def render_card(
         ],
         fill=_hex_to_rgb(color_hex),
     )
-    draw.text(
-        (margin + 26, brand_y - 2),
-        "BRGrid",
-        font=mark_font,
-        fill="white",
-        stroke_width=2,
-        stroke_fill=(6, 7, 10),
-    )
+    draw.text((margin + 26, brand_y - 2), "BRGrid", font=mark_font, fill="white")
 
     # chip de categoria (canto superior direito)
     chip_font = _load_font("BarlowCondensed-Bold", 30)
@@ -264,17 +261,10 @@ def render_card(
     font, lines, line_h = _fit_text_block(draw, text, text_max_w, text_max_h)
     block_h = line_h * len(lines)
     text_y0 = CARD_H - footer_zone - block_h - 24
+    title_color = _hex_to_rgb(DEFAULT_COLOR)
     y = text_y0
-    stroke_w = max(2, round(font.size / 20))
     for line in lines:
-        draw.text(
-            (margin, y),
-            line,
-            font=font,
-            fill="white",
-            stroke_width=stroke_w,
-            stroke_fill=(6, 7, 10),
-        )
+        draw.text((margin, y), line, font=font, fill=title_color)
         y += line_h
 
     # rodapé: handle do site (ou CTA, decidido por quem chama via `site_handle`)
@@ -284,8 +274,6 @@ def render_card(
         site_handle,
         font=foot_font,
         fill=(255, 255, 255, 220),
-        stroke_width=1,
-        stroke_fill=(6, 7, 10),
     )
 
     return canvas.convert("RGB")

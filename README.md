@@ -268,19 +268,24 @@ tem `noindex` (não deve aparecer em buscadores — ver `head.html`) e só exist
 um link pra ela na matéria (`Ver cards para Stories →`) quando
 `has_cards = true` no frontmatter do post.
 
-O texto de cada card é sempre branco, sobreposto direto na foto de fundo
-(sem controle sobre o que vai aparecer atrás — a foto muda por matéria).
-Pra garantir legibilidade mesmo contra fotos muito claras, brancas ou com
-muito detalhe (onde texto branco liso quase some), todo texto desenhado em
-`render_card()` (título, marca "BRGrid", handle do rodapé) leva um
-contorno escuro fino (`stroke_width`/`stroke_fill` do próprio
-`ImageDraw.text` do Pillow — desde a 6.2, nada de gambiarra com texto
-duplicado), além do gradiente/véu escuro já existente por cima da foto
-(`_gradient_overlay()`). O contorno é o que resolve o caso realmente
-difícil (fundo bem claro ou uniforme, onde o texto ficava quase invisível);
-o gradiente sozinho não bastava porque, em cards com texto longo (várias
-linhas), a parte de cima do bloco de texto podia cair fora da faixa mais
-escura do gradiente.
+O texto de cada card é sobreposto direto na foto de fundo (sem controle
+sobre o que vai aparecer atrás — a foto muda por matéria), então precisa de
+contraste garantido independente de foto clara, escura ou cheia de
+detalhe. Já testamos contorno escuro em volta das letras
+(`stroke_width`/`stroke_fill` do Pillow) e o resultado ficou ruim
+visualmente — foi revertido. A solução atual, em `render_card()`
+(`pipeline/cards.py`):
+- `_gradient_overlay()` mais forte que o original: o véu plano por cima de
+  toda a foto subiu de alpha 46 pra 92, e o gradiente do rodapé cobre uma
+  faixa maior (72% da altura do card, era 62%) — o suficiente pra escurecer
+  a foto até em cards com texto longo (várias linhas), sem precisar de
+  contorno.
+- O título principal do card usa a cor laranja da marca (`DEFAULT_COLOR`,
+  `#e4572e` — a mesma dos links "Baixar ↓" na página de cards, ver
+  `.cards-item figcaption a` em `site/static/css/style.css`) em vez de
+  branco liso — maior contraste e reforça a identidade visual, sem
+  contorno. Marca "BRGrid" e handle do rodapé continuam brancos (ficam
+  numa faixa onde o véu/gradiente já garante contraste de sobra).
 
 ## Estrutura
 
