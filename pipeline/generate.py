@@ -381,20 +381,31 @@ Verifique com atenção especial:
 - Números: tempos, posições, datas, contagem de pontos, resultados
 - Relações de causa e efeito (ex.: quem lidera o quê, quem superou quem)
 - Qualquer detalhe que soe específico mas não apareça em nenhum texto-fonte
+- Português: título, linha fina e corpo têm que estar em bom português do
+  Brasil — sem erro de gramática, concordância, regência ou ortografia, sem
+  frase mal construída, e sem calco/tradução literal de outro idioma (ex.:
+  termo em inglês que tem equivalente natural em português, ou construção
+  que soa traduzida em vez de escrita originalmente em português)
 
 Regras:
 - Se um dado do rascunho não está em nenhum texto-fonte e não pode ser
   inferido com segurança, REMOVA ou GENERALIZE a frase — nunca mantenha um
   dado não verificado.
 - Corrija o dado errado quando os textos-fonte permitirem confirmar o correto.
+- Corrija também qualquer problema de português do Brasil que encontrar no
+  título, na linha fina ou no corpo (erro de gramática, concordância,
+  ortografia, frase mal formada, calco de outro idioma) — mesmo que o dado
+  em si já esteja correto. Ajuste só a redação do trecho com problema,
+  preservando o tom e o restante do texto.
 - Não adicione fatos novos que não estavam no rascunho nem nos textos-fonte.
 - O rascunho é escrito no tom {writer.tone_note} (voz editorial de
   {writer.author_name}) — PRESERVE esse tom e a fluidez; corrija o mínimo
-  necessário para garantir precisão, sem reescrever o texto do zero e sem
-  descaracterizar o estilo ao corrigir um dado. Ajuste só o dado em si
-  (nome, número, resultado etc.), mantendo o restante do texto como está
-  sempre que possível.
-- Se o rascunho já estiver correto, devolva-o sem alterações.
+  necessário para garantir precisão e bom português, sem reescrever o texto
+  do zero e sem descaracterizar o estilo ao corrigir um dado ou uma frase.
+  Ajuste só o que precisa (nome, número, resultado, erro de português etc.),
+  mantendo o restante do texto como está sempre que possível.
+- Se o rascunho já estiver correto (fatos e português), devolva-o sem
+  alterações.
 - Se, depois de remover/generalizar tudo que não é verificável, sobrar pouco
   ou nenhum fato de verdade (o rascunho vira só generalidades vagas, sem
   nenhuma informação concreta sobre o evento), NÃO devolva esse resultado
