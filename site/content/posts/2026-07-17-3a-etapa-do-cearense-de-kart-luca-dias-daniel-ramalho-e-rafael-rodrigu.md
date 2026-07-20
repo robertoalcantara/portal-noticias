@@ -1,0 +1,22 @@
++++
+title = "3ª etapa do Cearense de Kart: Luca Dias, Daniel Ramalho e Rafael Rodrigues vencem em dia de duelo intenso"
+date = 2026-07-17T00:00:00Z
+author = "Armando Traço"
+summary = "No sábado (11), o Kartódromo KartClube Premium recebeu a terceira etapa do campeonato estadual, com vitórias marcantes nas categorias Cadete, Graduados e Júnior."
+categories = ["Kart"]
+tags = ["Campeonato Cearense", "Kart", "Luca Dias", "Daniel Ramalho"]
+sources = ["Terceira etapa de Campeonato Cearense de Kart será realizada neste sábado | Notícias | Esporte Press Brasil", "Motor em Ação", "Carros e Corridas", "Carros e Corridas", "Carros e Corridas", "Carros e Corridas"]
+source_urls = ["https://esportepressbrasil.com.br/noticia/3725/terceira-etapa-de-campeonato-cearense-de-kart-sera-realizada-neste-sabado/", "https://www.motoremacao.com.br/noticia/luca-dias-vence-a-3-etapa-e-permanece-na-lideranca-do-campeonato-cearense-de-kart-2026", "https://carrosecorridas.com.br/daniel-ramalho-conquista-vitoria-no-cearense-de-kart/", "https://carrosecorridas.com.br/douglas-soares-mantem-lideranca-na-categoria-junior/", "https://carrosecorridas.com.br/caio-aguiar-conquista-mais-um-podio-no-cearense-de-kart/", "https://carrosecorridas.com.br/luca-dias-vence-terceira-etapa-e-assume-lideranca-da-cadete/"]
+image = "/images/ia/5b88b013e90842ad-original.jpg"
+image_credit_name = "Terceira etapa de Campeonato Cearense de Kart será realizada neste sábado | Notícias | Esporte Press Brasil"
+image_credit_url = "https://esportepressbrasil.com.br/noticia/3725/terceira-etapa-de-campeonato-cearense-de-kart-sera-realizada-neste-sabado/"
+image_provider = "Foto original da matéria-fonte"
+has_cards = true
++++
+No último sábado (11), o Outlet Premium Fortaleza, em Caucaia (CE), foi palco da terceira etapa do Campeonato Cearense de Kart 2026. Com entrada gratuita e programação das 9h às 20h, o evento reuniu não apenas as disputas de kart, mas também exibições de drift e encontro de veículos. A pista de 1.000 m do Kartódromo KartClube Premium foi cenário de três categorias com desfechos distintos e de alto nível técnico.
+
+Na Cadete, o destaque foi o jovem Luca Dias, de apenas 9 anos. Pilotando um Bravar pela Equipe Guilherme Competições, ele cravou a pole com 47.880s, mais de um segundo à frente do segundo colocado Pedro Borges (48.990s). Na primeira bateria, uma pedra na corrente o fez perder uma volta, mas ele ainda terminou e registrou a volta mais rápida da etapa. Venceu a segunda bateria com tranquilidade e, na grande final, protagonizou um duelo acirrado com Borges: após pressionar por seis voltas, aplicou uma ultrapassagem limpa e abriu vantagem para vencer. Com duas vitórias consecutivas (etapas 2 e 3) e um vice na abertura, Luca mantém a liderança do campeonato. O pódio ainda teve Caio Aguar em terceiro, Lucca Santana em quarto e Arthur Teixeira em quinto.
+
+Na Graduados, o paulista Daniel Ramalho (D.Racing) foi o grande nome. Convidado pela presidente da Federação Cearense, Lutianne Soares, ele disputou a etapa no kart de Paulo Holanda e conquistou a pole com 45.466s. Venceu a primeira bateria sem sustos, mas na segunda sofreu um toque que o jogou para P4. Com recuperação consistente, reassumiu a liderança a seis voltas do fim e venceu novamente. Igor Borges, pilotando um Kart Mini sem treinos prévios, largou em quarto e terminou em sexto na primeira bateria, mas subiu para terceiro após penalizações de adversários. Na final, Borges foi tocado e caiu para último, fechando em 12º, mas marcou o quarto melhor tempo (46.117s). O resultado final colocou Daniel Ramalho no topo, seguido por Leonardo Soares e Leandro Soares. Na classificação geral, Leonardo Soares lidera com 27 pontos, à frente de Flávio Figueiredo (24) e Marcos Borges Kinho (19).
+
+A categoria Júnior entregou o duelo mais equilibrado do dia. Douglas Soares (LDS Group) trocou o chassi Bravar por um Tony Kart e buscou adaptação. Na classificação, Rafael Rodrigues cravou a pole com 44.048s, 0.488s à frente de Douglas. Rafael venceu a primeira bateria; Douglas levou a segunda, com melhor volta em 44.820s contra 44.351s de Rafael. Na final, Douglas largou na frente e defendeu a posição até a quinta volta, quando Rafael conseguiu uma ultrapassagem consistente e não mais perdeu a liderança, vencendo a prova. A diferença entre os melhores tempos foi de apenas 243 milésimos (44.354s de Rafael contra 44.579s de Douglas). Com o resultado, Douglas Soares segue líder com 30 pontos, mas Rafael Rodrigues encostou com 29, prometendo mais emoção na próxima etapa.
