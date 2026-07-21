@@ -181,14 +181,13 @@ def _fit_text_block(
 
 def render_card(
     text: str,
-    index: int,
-    total: int,
     category: str,
     background_path: Path | None,
     site_handle: str = "gridgeral.com",
 ) -> Image.Image:
-    """Renderiza UM card (1080x1920). `index`/`total` são 1-based, usados só
-    pra desenhar os tracinhos de progresso no topo (estilo Stories)."""
+    """Renderiza UM card (1080x1920). Sem indicador de progresso/quantidade
+    de cards (removido de propósito) — marca, categoria e handle do site
+    ficam concentrados no rodapé."""
     color_hex = CATEGORY_COLORS.get(category, DEFAULT_COLOR)
 
     if background_path and background_path.exists():
@@ -206,55 +205,12 @@ def render_card(
 
     margin = 72
 
-    # tracinhos de progresso (estilo Stories) no topo
-    if total > 1:
-        gap = 10
-        bar_w = (CARD_W - 2 * margin - gap * (total - 1)) / total
-        bar_y = 40
-        for i in range(total):
-            x0 = margin + i * (bar_w + gap)
-            fill = (255, 255, 255, 235) if i < index else (255, 255, 255, 80)
-            draw.rounded_rectangle(
-                [x0, bar_y, x0 + bar_w, bar_y + 6], radius=3, fill=fill
-            )
-        brand_y = 74
-    else:
-        brand_y = 46
-
-    # marca Grid Geral (canto superior esquerdo) — barrinha inclinada + nome
-    mark_font = _load_font("ArchivoBlack-Regular", 34)
-    draw.polygon(
-        [
-            (margin, brand_y + 30),
-            (margin + 10, brand_y),
-            (margin + 18, brand_y),
-            (margin + 8, brand_y + 30),
-        ],
-        fill=_hex_to_rgb(color_hex),
-    )
-    draw.text((margin + 26, brand_y - 2), "Grid Geral", font=mark_font, fill="white")
-
-    # chip de categoria (canto superior direito)
-    chip_font = _load_font("BarlowCondensed-Bold", 30)
-    chip_pad_x, chip_pad_y = 20, 10
-    chip_w = draw.textlength(category.upper(), font=chip_font) + chip_pad_x * 2
-    chip_h = 40 + chip_pad_y
-    chip_x1 = CARD_W - margin
-    chip_x0 = chip_x1 - chip_w
-    draw.rounded_rectangle(
-        [chip_x0, brand_y - 6, chip_x1, brand_y - 6 + chip_h],
-        radius=8,
-        fill=_hex_to_rgb(color_hex),
-    )
-    draw.text(
-        (chip_x0 + chip_pad_x, brand_y - 6 + chip_pad_y / 2 - 1),
-        category.upper(),
-        font=chip_font,
-        fill="white",
-    )
+    # Sem tracinhos de progresso no topo e sem marca/categoria lá em cima —
+    # topo do card fica limpo, só a foto. Marca (logo), categoria e handle
+    # do site ficam concentrados no rodapé (ver abaixo).
 
     # texto principal do card, ancorado no terço inferior
-    footer_zone = 150
+    footer_zone = 210
     text_max_w = CARD_W - margin * 2
     text_max_h = CARD_H - margin - footer_zone - 640  # limite pra não invadir a área de cima
     text_max_h = max(text_max_h, 420)
@@ -267,10 +223,47 @@ def render_card(
         draw.text((margin, y), line, font=font, fill=title_color)
         y += line_h
 
-    # rodapé: handle do site (ou CTA, decidido por quem chama via `site_handle`)
+    # rodapé: marca (logo) + categoria numa linha, handle/CTA do site embaixo
+    footer_top = CARD_H - footer_zone
+    brand_row_y = footer_top + 30
+
+    # marca Grid Geral (canto inferior esquerdo) — barrinha inclinada + nome
+    mark_font = _load_font("ArchivoBlack-Regular", 32)
+    draw.polygon(
+        [
+            (margin, brand_row_y + 28),
+            (margin + 9, brand_row_y),
+            (margin + 16, brand_row_y),
+            (margin + 7, brand_row_y + 28),
+        ],
+        fill=_hex_to_rgb(color_hex),
+    )
+    draw.text((margin + 24, brand_row_y - 2), "Grid Geral", font=mark_font, fill="white")
+
+    # chip de categoria (canto inferior direito, mesma linha da marca)
+    chip_font = _load_font("BarlowCondensed-Bold", 28)
+    chip_pad_x, chip_pad_y = 18, 9
+    chip_w = draw.textlength(category.upper(), font=chip_font) + chip_pad_x * 2
+    chip_h = 38 + chip_pad_y
+    chip_x1 = CARD_W - margin
+    chip_x0 = chip_x1 - chip_w
+    draw.rounded_rectangle(
+        [chip_x0, brand_row_y - 5, chip_x1, brand_row_y - 5 + chip_h],
+        radius=8,
+        fill=_hex_to_rgb(color_hex),
+    )
+    draw.text(
+        (chip_x0 + chip_pad_x, brand_row_y - 5 + chip_pad_y / 2 - 1),
+        category.upper(),
+        font=chip_font,
+        fill="white",
+    )
+
+    # handle do site (ou CTA, decidido por quem chama via `site_handle`) —
+    # linha de baixo do rodapé, abaixo da marca/categoria
     foot_font = _load_font("BarlowCondensed-SemiBold", 30)
     draw.text(
-        (margin, CARD_H - footer_zone + 24),
+        (margin, footer_top + 100),
         site_handle,
         font=foot_font,
         fill=(255, 255, 255, 220),
@@ -307,7 +300,7 @@ def generate_card_images(
     for i, text in enumerate(texts, start=1):
         handle = cta_text if i == total else site_handle
         bg = backgrounds[(i - 1) % len(backgrounds)] if backgrounds else None
-        img = render_card(text, i, total, category, bg, site_handle=handle)
+        img = render_card(text, category, bg, site_handle=handle)
         path = out_dir / f"{i}.png"
         img.save(path, "PNG", optimize=True)
         paths.append(path)
