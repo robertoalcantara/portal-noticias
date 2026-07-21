@@ -190,15 +190,17 @@ INSUFFICIENT_CONTENT_TITLE = "CONTEUDO_INSUFICIENTE"
 # WriterProfile (author_name, persona, tone_note, min_sources) e insira-o
 # em WRITER_PROFILES na posição certa (ver comentário na lista). Nenhum
 # outro código precisa mudar — build_write_system_prompt/
-# build_factcheck_system_prompt/build_cards_system_prompt e select_writer()
-# já trabalham genericamente com qualquer WriterProfile.
+# build_cards_system_prompt e select_writer() já trabalham genericamente
+# com qualquer WriterProfile. build_factcheck_system_prompt NÃO recebe
+# writer de propósito — a revisão de fatos é a mesma pra qualquer editor,
+# não deve levar em conta quem escreveu o rascunho (ver a função).
 
 @dataclass(frozen=True)
 class WriterProfile:
     key: str
     author_name: str
     persona: str        # bloco "Você é um editor..." que descreve o estilo
-    tone_note: str       # frase curta descrevendo o tom, usada no factcheck/cards
+    tone_note: str       # frase curta descrevendo o tom, usada em build_cards_system_prompt
     min_sources: int = 0  # nº mínimo de textos-fonte utilizáveis pra ser escolhido
 
 
@@ -207,9 +209,9 @@ BRUNO_BANDEIRA = WriterProfile(
     author_name="Bruno Bandeira",
     persona="""Você é um editor de notícias experiente, com olhar crítico e senso de humor
 afiado. Sua missão é transformar textos jornalísticos em conteúdos mais
-envolventes, adicionando comentários sarcásticos, ironia elegante e toques
-de humor, sem alterar os fatos ou comprometer a credibilidade da
-informação. Seu estilo deve: preservar a precisão dos acontecimentos e dos
+envolventes, adicionando comentários elegantes e toques de humor simples,
+sem alterar os fatos ou comprometer a credibilidade da informação. Seu
+estilo deve: preservar a precisão dos acontecimentos e dos
 dados apresentados. Usar sarcasmo inteligente para destacar contradições,
 exageros e situações curiosas. Inserir humor de forma natural, com piadas
 rápidas, analogias criativas e observações espirituosas. Escrever de
@@ -367,17 +369,20 @@ Responda APENAS com um objeto JSON válido (sem markdown, sem crases), no format
   "corpo_markdown": "3 a 5 parágrafos em Markdown"
 }}"""
 
-def build_factcheck_system_prompt(writer: WriterProfile) -> str:
+def build_factcheck_system_prompt() -> str:
     return f"""\
 Você é o revisor de fatos (fact-checker) do Grid Geral, portal de automobilismo.
 Vai receber um ou mais TEXTOS-FONTE originais (rotulados por fonte) e um
 RASCUNHO em português gerado por outro editor a partir deles. Seu trabalho é
 comparar o rascunho contra os textos-fonte FRASE A FRASE e corrigir qualquer
-imprecisão.
+imprecisão — sem levar em conta quem escreveu o rascunho.
 
 Verifique com atenção especial:
-- Nomes de pilotos, equipes, patrocinadores e circuitos
-- Nacionalidades e afiliações (equipe, categoria, fabricante)
+- PRIORIDADE MÁXIMA: o nome de cada piloto citado e a equipe/escuderia a
+  que ele pertence — é o erro mais grave e mais comum. Confira piloto por
+  piloto contra os textos-fonte, um a um; não vale "parece certo".
+- Nomes de equipes, patrocinadores e circuitos
+- Nacionalidades e afiliações (categoria, fabricante)
 - Números: tempos, posições, datas, contagem de pontos, resultados
 - Relações de causa e efeito (ex.: quem lidera o quê, quem superou quem)
 - Qualquer detalhe que soe específico mas não apareça em nenhum texto-fonte
@@ -390,22 +395,27 @@ Verifique com atenção especial:
 Regras:
 - Se um dado do rascunho não está em nenhum texto-fonte e não pode ser
   inferido com segurança, REMOVA ou GENERALIZE a frase — nunca mantenha um
-  dado não verificado.
+  dado não verificado. EXCEÇÃO: nome de piloto e equipe a que pertence
+  NUNCA devem ser "salvos" assim — se os textos-fonte não permitem
+  confirmar esse dado com segurança, trate a matéria inteira como
+  conteúdo insuficiente (ver regra abaixo) em vez de generalizar.
 - Corrija o dado errado quando os textos-fonte permitirem confirmar o correto.
 - Corrija também qualquer problema de português do Brasil que encontrar no
   título, na linha fina ou no corpo (erro de gramática, concordância,
   ortografia, frase mal formada, calco de outro idioma) — mesmo que o dado
-  em si já esteja correto. Ajuste só a redação do trecho com problema,
-  preservando o tom e o restante do texto.
+  em si já esteja correto. Ajuste só a redação do trecho com problema.
 - Não adicione fatos novos que não estavam no rascunho nem nos textos-fonte.
-- O rascunho é escrito no tom {writer.tone_note} (voz editorial de
-  {writer.author_name}) — PRESERVE esse tom e a fluidez; corrija o mínimo
-  necessário para garantir precisão e bom português, sem reescrever o texto
-  do zero e sem descaracterizar o estilo ao corrigir um dado ou uma frase.
-  Ajuste só o que precisa (nome, número, resultado, erro de português etc.),
-  mantendo o restante do texto como está sempre que possível.
+- Não leve em conta quem escreveu o rascunho, nem tente preservar um tom
+  ou voz editorial específica — seu único critério é precisão e bom
+  português. Ainda assim, ajuste só o que for necessário para corrigir um
+  dado ou uma frase, sem reescrever o texto inteiro do zero.
 - Se o rascunho já estiver correto (fatos e português), devolva-o sem
   alterações.
+- Não tolere matéria escrita a partir de fonte incompleta: se os
+  textos-fonte não trazem informação suficiente para confirmar os fatos
+  centrais da matéria (a começar por piloto e equipe, mas vale para
+  qualquer dado central), NÃO vale generalizar e publicar assim mesmo —
+  trate como conteúdo insuficiente (regra abaixo).
 - Se, depois de remover/generalizar tudo que não é verificável, sobrar pouco
   ou nenhum fato de verdade (o rascunho vira só generalidades vagas, sem
   nenhuma informação concreta sobre o evento), NÃO devolva esse resultado
@@ -1082,10 +1092,12 @@ def rewrite_with_claude(
 
 
 def factcheck_with_claude(
-    article: dict, source_blocks: list[tuple[str, str, str | None]], writer: WriterProfile
+    article: dict, source_blocks: list[tuple[str, str, str | None]]
 ) -> dict:
-    """Segunda passada: revisa o rascunho contra os textos-fonte originais,
-    preservando o tom do MESMO `writer` que escreveu o rascunho."""
+    """Segunda passada: revisa o rascunho contra os textos-fonte originais.
+    NÃO leva em conta quem escreveu o rascunho nem tenta preservar tom/voz
+    editorial — o único critério é precisão da informação (piloto e equipe
+    em primeiro lugar) e bom português (ver build_factcheck_system_prompt)."""
     if DRY_RUN:
         return article
 
@@ -1100,7 +1112,7 @@ def factcheck_with_claude(
         f"TEXTOS-FONTE:\n{sources_text}\n\n"
         f"RASCUNHO (JSON):\n{json.dumps(article, ensure_ascii=False)}"
     )
-    raw = call_llm(build_factcheck_system_prompt(writer), user_content, 8192, FACTCHECK_MODEL)
+    raw = call_llm(build_factcheck_system_prompt(), user_content, 8192, FACTCHECK_MODEL)
     return parse_model_json(raw)
 
 
@@ -1761,7 +1773,7 @@ def process_group(
         stats["n_enviados_factcheck"] += 1
         print(f"    revisando fatos ({active_text_model(FACTCHECK_MODEL)})...")
         try:
-            article = factcheck_with_claude(article, source_blocks, writer)
+            article = factcheck_with_claude(article, source_blocks)
         except Exception as exc:  # noqa: BLE001
             stats["n_factcheck_falhou"] += 1
             print(f"    aviso: revisão de fatos falhou, publicando rascunho ({exc})", file=sys.stderr)
