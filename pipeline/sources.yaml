@@ -71,3 +71,16 @@ feeds:
     type: list
     list_url: "https://www.cba.org.br/"
     link_contains: "noticiasinfo"
+
+  # --- Automobilismo brasileiro (geral, sem RSS -> raspagem da listagem) ---
+  # "Revista Curva3" é o portal de automobilismo (F1, WEC, Le Mans etc.) do
+  # site Autoentusiastas -- robots.txt permite raspagem (só bloqueia
+  # /ae/wp-admin/). Sem feed RSS específico dessa seção (o site é
+  # WordPress só com permalink padrão /AAAA/MM/titulo/, sem um trecho fixo
+  # tipo "/noticia/" pra filtrar) -> link_contains usa "/20" (cobre
+  # 2000-2099) em vez de travar num ano específico como "/2026/", que
+  # quebraria sozinho na virada do ano.
+  - name: "Autoentusiastas (Revista Curva3)"
+    type: list
+    list_url: "https://autoentusiastas.com.br/revistacurva3/"
+    link_contains: "autoentusiastas.com.br/20"
