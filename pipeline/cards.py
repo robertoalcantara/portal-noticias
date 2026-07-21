@@ -261,7 +261,7 @@ def render_card(
     font, lines, line_h = _fit_text_block(draw, text, text_max_w, text_max_h)
     block_h = line_h * len(lines)
     text_y0 = CARD_H - footer_zone - block_h - 24
-    title_color = _hex_to_rgb(DEFAULT_COLOR)
+    title_color = (255, 255, 255)  # branco -- contraste garantido pelo véu escuro (_gradient_overlay)
     y = text_y0
     for line in lines:
         draw.text((margin, y), line, font=font, fill=title_color)
