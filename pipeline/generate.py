@@ -1995,7 +1995,11 @@ def build_manual_image_info(sources: list[str]) -> tuple[dict | None, list[Path]
                 "url": f"{GENERATED_IMAGES_URL_PREFIX}/{filename}",
                 "credit_name": "",
                 "credit_url": "",
-                "provider": "IA (variação de imagem enviada manualmente)",
+                # Sem "enviada manualmente" aqui de propósito -- esse texto
+                # vai pro frontmatter (image_provider) e é exibido no rodapé
+                # da foto na matéria publicada (ver single.html); é
+                # informação de processo interno, sem valor pro leitor.
+                "provider": "IA (variação de imagem)",
                 "source_image_url": cover_source,
                 "tokens": token_info,
             }
@@ -2010,7 +2014,12 @@ def build_manual_image_info(sources: list[str]) -> tuple[dict | None, list[Path]
             "url": f"{GENERATED_IMAGES_URL_PREFIX}/{filename}",
             "credit_name": credit_name,
             "credit_url": credit_url,
-            "provider": "Imagem enviada manualmente",
+            # Vazio de propósito -- ver comentário acima na variação por IA:
+            # "enviada manualmente" é detalhe de processo interno, não deve
+            # aparecer no rodapé da foto da matéria publicada. Quando
+            # credit_name existir (fonte era um link), o rodapé mostra só
+            # "Foto: <domínio>", sem sufixo.
+            "provider": "",
             "source_image_url": cover_source,
             "tokens": None,
         }
