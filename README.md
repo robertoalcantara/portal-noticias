@@ -307,11 +307,14 @@ pipeline/
   sources.yaml        fontes: RSS ou sites sem feed (raspagem de listagem)
   generate.py          coleta, agrupa, gera e revisa as matérias
   cards.py             renderiza os cards de Stories (Pillow, sem rede)
+  publish_instagram.py publica os cards já gerados como Stories no Instagram
   assets/fonts/        fontes usadas nos cards (OFL)
   requirements.txt    dependências Python
   seen.json           controle de matérias já publicadas (não apague)
+  instagram_posted.json controle de Stories já publicadas (não apague)
 .github/workflows/
   update.yml          agenda a cada 3h + botão "Run workflow"
+  instagram-stories.yml agenda de hora em hora, publica Stories pendentes
 site/
   hugo.toml           config do site (troque baseURL após publicar)
   layouts/            templates (home tipo portal, cards com cor por categoria)
@@ -467,6 +470,63 @@ do escopo deste modo). Ver env `REPLACE_IMAGE_URL`/
 `pipeline/generate.py`, e o workflow
 `.github/workflows/replace-article-image.yml`.
 
+### 8. (Opcional) Publicação automática no Instagram (Stories)
+Publica os cards de Stories de cada matéria como Stories de verdade em
+**@gridgeral**, automaticamente — workflow separado
+(`.github/workflows/instagram-stories.yml`), agendado pra rodar 15min
+depois do funil principal (dá tempo do deploy do Cloudflare Pages
+propagar; a API do Instagram busca a imagem por URL pública, ela
+precisa estar no ar). Não depende de qual workflow gerou a matéria
+(funil automático, modo manual etc.) — só varre o que já está
+publicado e posta o que ainda não foi.
+
+**Pré-requisito (feito manualmente, uma vez só, direto no painel da
+Meta — isso aqui ninguém automatiza por você):**
+1. Converta a conta do Instagram (@gridgeral) pra **Business** ou
+   **Creator**, se ainda não for (Configurações → Conta → Mudar para
+   conta profissional, no app do Instagram).
+2. Vincule essa conta a uma **Página do Facebook** (pode ser uma
+   Página nova, só pra isso — Configurações → Conta vinculada, no
+   Instagram, ou pelo Gerenciador de Negócios).
+3. Crie um app em <https://developers.facebook.com/apps/> (tipo
+   "Business"), adicione o produto **Instagram Graph API** a ele.
+4. Gere um **token de acesso de longa duração** (~60 dias, renovável)
+   com as permissões `instagram_basic`, `instagram_content_publish` e
+   `pages_show_list` — mais simples pelo **Graph API Explorer**
+   (<https://developers.facebook.com/tools/explorer/>): selecione o
+   app, a Página, gere um token de usuário de curta duração com essas
+   permissões, e troque por um de longa duração (endpoint
+   `oauth/access_token` com `grant_type=fb_exchange_token` — a própria
+   documentação da Meta explica o passo a passo, isso muda de vez em
+   quando).
+5. Descubra o **ID numérico da conta profissional do Instagram**
+   (não é o `@usuario`): `GET /{id-da-pagina}?fields=instagram_business_account`
+   no Graph API Explorer.
+
+Com isso em mãos, dois secrets no repositório (mesmo caminho dos
+outros: **Settings → Secrets and variables → Actions**):
+- `INSTAGRAM_ACCESS_TOKEN` — o token de longa duração do passo 4.
+- `INSTAGRAM_BUSINESS_ACCOUNT_ID` — o ID numérico do passo 5.
+
+Sem esses dois secrets configurados, o workflow roda e não faz nada
+(sai de propósito sem erro — mesmo padrão de `GEMINI_API_KEY`
+ausente).
+
+**Corte de segurança:** o Instagram limita a API a 25 publicações por
+conta a cada 24h (Stories incluído nessa conta — mas publicações
+feitas à mão pelo app do Instagram NÃO contam nesse limite, só as
+feitas via API). Ficamos abaixo de propósito: no máximo
+`MAX_INSTAGRAM_POSTS_PER_DAY` (padrão 20, configurável) publicações
+por dia. Cards de matérias com mais de 48h não são mais publicados
+(Stories são conteúdo do "agora" — não faz sentido postar algo de
+dias atrás só porque sobrou cota). O controle do que já foi publicado
+fica em `pipeline/instagram_posted.json` (não apague — sem ele o
+script tentaria republicar tudo de novo).
+
+Ver `pipeline/publish_instagram.py` pros detalhes de implementação
+(Instagram Graph API: criar container de mídia → esperar processar →
+publicar).
+
 ## Rodar localmente (opcional)
 
 ```bash
@@ -509,6 +569,7 @@ cd site && hugo server
 | Imagem manual da matéria (capa + extras pros cards) | campo `images` do workflow manual, ou env `MANUAL_IMAGES` local |
 | Excluir matéria pelo link | workflow `delete-article.yml` (campo `url`) ou env `DELETE_URL` local |
 | Trocar imagem principal de matéria já publicada | workflow `replace-article-image.yml` (campos `url`/`image`) ou envs `REPLACE_IMAGE_URL`/`REPLACE_IMAGE_SOURCE` locais |
+| Publicação automática de Stories no Instagram | workflow `instagram-stories.yml`, secrets `INSTAGRAM_ACCESS_TOKEN`/`INSTAGRAM_BUSINESS_ACCOUNT_ID`, env `MAX_INSTAGRAM_POSTS_PER_DAY` (padrão 20) |
 
 ## Custos
 - **GitHub Actions** e **Cloudflare Pages**: cabem no plano gratuito para esse uso.

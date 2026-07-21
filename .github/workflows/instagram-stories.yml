@@ -1,0 +1,58 @@
+name: Publicar Stories no Instagram
+
+# Workflow separado do "Atualizar notícias": publica os cards de Stories
+# já gerados (qualquer matéria, de qualquer workflow) como Stories de
+# verdade em @gridgeral, via Instagram Graph API. Agendado pra alguns
+# minutos DEPOIS do funil principal (cron "0 * * * *") -- a API do
+# Instagram busca a imagem por URL pública, então o deploy do Cloudflare
+# Pages precisa já ter acontecido antes de tentar publicar.
+#
+# Não gera nem publica matéria nenhuma -- só varre o que já está no site
+# (site/content/posts/ + site/static/images/cards/) e publica o que ainda
+# não foi publicado, respeitando um corte diário de segurança (o
+# Instagram limita a API a 25 publicações/24h). Ver
+# pipeline/publish_instagram.py e a seção "Publicação automática no
+# Instagram" no README pra pré-requisitos e configuração.
+on:
+  schedule:
+    - cron: "15 * * * *"   # 15 min depois do funil principal, pra dar tempo do deploy propagar
+  workflow_dispatch: {}
+
+# necessário para o job conseguir dar push do controle de já-publicados
+permissions:
+  contents: write
+
+concurrency:
+  group: atualizar-noticias
+  cancel-in-progress: false
+
+jobs:
+  publicar-stories:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Publicar Stories pendentes
+        env:
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ secrets.INSTAGRAM_BUSINESS_ACCOUNT_ID }}
+        run: python pipeline/publish_instagram.py
+
+      - name: Commit e push do controle de publicados
+        run: |
+          git config user.name  "news-bot"
+          git config user.email "news-bot@users.noreply.github.com"
+          git add pipeline/instagram_posted.json
+          if git diff --cached --quiet; then
+            echo "Nada novo publicado nesta rodada."
+          else
+            git commit -m "Stories publicadas no Instagram ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git push
+          fi
