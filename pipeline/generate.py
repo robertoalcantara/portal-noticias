@@ -90,6 +90,7 @@ import os
 import re
 import shutil
 import sys
+import time
 import urllib.request
 
 try:
@@ -133,6 +134,11 @@ FACTCHECK_MODEL = os.environ.get("FACTCHECK_MODEL", "claude-haiku-4-5-20251001")
 CLUSTER_MODEL = os.environ.get("CLUSTER_MODEL", "claude-haiku-4-5-20251001")
 CARDS_MODEL = os.environ.get("CARDS_MODEL", "claude-haiku-4-5-20251001")
 MAX_PER_FEED = int(os.environ.get("MAX_PER_FEED", "4"))
+# Limiar (segundos) acima do qual uma fonte é marcada como "LENTA" no log de
+# coleta -- só pra facilitar achar visualmente no log qual fonte demorou mais
+# e avaliar se vale desativá-la temporariamente (ver sources.yaml). Não
+# desativa nada sozinho, é só sinalização pro log.
+SLOW_SOURCE_THRESHOLD_SECONDS = float(os.environ.get("SLOW_SOURCE_THRESHOLD_SECONDS", "8"))
 MAX_SOURCE_CHARS = int(os.environ.get("MAX_SOURCE_CHARS", "6000"))
 RECENT_CONTEXT_WINDOW_HOURS = int(os.environ.get("RECENT_CONTEXT_WINDOW_HOURS", "72"))
 RECENT_CONTEXT_MAX_ITEMS = int(os.environ.get("RECENT_CONTEXT_MAX_ITEMS", "60"))
@@ -773,13 +779,17 @@ def collect_all_candidates(feeds: list[dict], seen: set[str]) -> list[dict]:
     limite MAX_PER_FEED) e um resumo agregado no final."""
     candidates = []
     totals = _empty_collect_stats()
+    tempos_por_fonte: list[tuple[str, float]] = []
     for feed_cfg in feeds:
         is_list = feed_cfg.get("type") == "list"
         print(f"\n== {feed_cfg['name']} ({'raspagem de listagem' if is_list else 'RSS'}) ==")
+        t0 = time.monotonic()
         if is_list:
             found, stats = collect_list_candidates(feed_cfg, seen)
         else:
             found, stats = collect_rss_candidates(feed_cfg, seen)
+        elapsed = time.monotonic() - t0
+        tempos_por_fonte.append((feed_cfg["name"], elapsed))
 
         rotulo_lidas = "links encontrados na listagem" if is_list else "manchetes no feed"
         print(f"  {rotulo_lidas}:              {stats['lidas']}")
@@ -794,6 +804,7 @@ def collect_all_candidates(feeds: list[dict], seen: set[str]) -> list[dict]:
                 f"{stats['nao_processadas_por_limite']}"
             )
         print(f"  → novas nesta rodada:        {stats['novas']}")
+        print(f"  tempo de coleta:             {elapsed:.2f}s")
 
         candidates.extend(found)
         for key in totals:
@@ -809,6 +820,13 @@ def collect_all_candidates(feeds: list[dict], seen: set[str]) -> list[dict]:
     print(f"Descartadas (data antiga):                {totals['descartadas_data']}")
     print(f"Não processadas (limite por fonte):      {totals['nao_processadas_por_limite']}")
     print(f"Novas (candidatas à 2ª fase):             {totals['novas']}")
+
+    tempo_total = sum(t for _, t in tempos_por_fonte)
+    print("\nTempo de coleta por fonte (do mais lento pro mais rápido):")
+    for nome, t in sorted(tempos_por_fonte, key=lambda item: item[1], reverse=True):
+        marcador = "  ⚠ LENTA" if t > SLOW_SOURCE_THRESHOLD_SECONDS else ""
+        print(f"  {t:6.2f}s  {nome}{marcador}")
+    print(f"  {tempo_total:6.2f}s  TOTAL (todas as fontes)")
     return candidates
 
 
