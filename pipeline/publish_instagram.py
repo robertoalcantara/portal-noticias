@@ -13,17 +13,22 @@ site/content/posts/ + site/static/images/cards/ e publica o que ainda não
 foi publicado.
 
 Pré-requisitos no Meta (ver README, seção "Publicação automática no
-Instagram"), feitos manualmente uma vez só:
+Instagram"), feitos manualmente uma vez só -- fluxo "Instagram API with
+Instagram Login" (NÃO exige vincular Página do Facebook):
   1. Conta do Instagram (@gridgeral) convertida pra Business ou Creator.
-  2. Vinculada a uma Página do Facebook.
-  3. Um app em https://developers.facebook.com/ com o produto
-     "Instagram Graph API" adicionado.
-  4. Um token de acesso de LONGA DURAÇÃO (~60 dias, renovável) com as
-     permissões instagram_basic + instagram_content_publish +
-     pages_show_list (ou equivalente, via Graph API Explorer ou fluxo de
-     OAuth do app).
-  5. O ID numérico da conta profissional do Instagram (NÃO é o
-     @usuario) -- GET /{page-id}?fields=instagram_business_account.
+  2. Um app em https://developers.facebook.com/ com o produto
+     "Instagram" (Business Login for Instagram) adicionado.
+  3. Um token de acesso de LONGA DURAÇÃO (~60 dias, renovável, começa
+     com "IGA...") com as permissões instagram_business_basic +
+     instagram_business_content_publish, trocado a partir de um token
+     curto via GET graph.instagram.com/access_token?grant_type=
+     ig_exchange_token&client_secret=...&access_token=....
+  4. O ID numérico da conta do Instagram (NÃO é o @usuario) --
+     GET https://graph.instagram.com/v21.0/me?fields=id,username&access_token=....
+
+IMPORTANTE: um token "IGA..." desse fluxo só funciona contra o host
+graph.instagram.com (usado abaixo em GRAPH_API_BASE) -- chamar
+graph.facebook.com com ele dá erro 190 "Cannot parse access token".
 
 Env vars:
   INSTAGRAM_ACCESS_TOKEN        (obrigatória) -- token de acesso de longa
@@ -34,12 +39,15 @@ Env vars:
                                  site/hugo.toml) -- de onde monta a URL
                                  pública de cada imagem de card.
   MAX_INSTAGRAM_POSTS_PER_DAY   (opcional, padrão: 20) -- corte de
-                                 segurança por rodada: o Instagram limita a
-                                 API a 25 publicações por conta a cada 24h
-                                 (Stories incluído, mas NÃO conta posts
-                                 feitos manualmente pelo app/site do
-                                 Instagram, só os publicados via API).
-                                 Ficamos abaixo de propósito, com folga.
+                                 segurança por rodada: hoje o Instagram
+                                 limita a API a 100 publicações por conta
+                                 a cada 24h (conteúdo publicado via API --
+                                 posts feitos manualmente pelo app/site do
+                                 Instagram não contam nesse limite; ver
+                                 developers.facebook.com/docs/instagram-platform/content-publishing
+                                 pro número atual, a Meta já mudou esse
+                                 limite antes). Ficamos BEM abaixo de
+                                 propósito, com folga.
 
 Se INSTAGRAM_ACCESS_TOKEN ou INSTAGRAM_BUSINESS_ACCOUNT_ID não estiverem
 definidas, o script sai silenciosamente sem fazer nada -- funcionalidade
@@ -77,7 +85,15 @@ POSTED_FILE = ROOT / "pipeline" / "instagram_posted.json"
 HUGO_CONFIG_FILE = ROOT / "site" / "hugo.toml"
 
 GRAPH_API_VERSION = "v21.0"  # se a Meta descontinuar essa versão, só trocar aqui
-GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
+# graph.instagram.com (não graph.facebook.com!) -- esse host é específico do
+# fluxo "Instagram API with Instagram Login" (Business Login for Instagram),
+# o que gera token começando com "IGA...". Existe também o fluxo antigo
+# "Instagram API with Facebook Login" (conta vinculada a uma Página, token
+# tipo "EAA...", host graph.facebook.com) -- os dois NÃO se misturam: um
+# token do tipo errado pro host errado dá "Cannot parse access token" (erro
+# 190), porque o parser de cada host só reconhece o formato do seu próprio
+# fluxo. Ver README, seção "Publicação automática no Instagram".
+GRAPH_API_BASE = f"https://graph.instagram.com/{GRAPH_API_VERSION}"
 
 ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "").strip()
 IG_USER_ID = os.environ.get("INSTAGRAM_BUSINESS_ACCOUNT_ID", "").strip()

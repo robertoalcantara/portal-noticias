@@ -481,50 +481,66 @@ precisa estar no ar). Não depende de qual workflow gerou a matéria
 publicado e posta o que ainda não foi.
 
 **Pré-requisito (feito manualmente, uma vez só, direto no painel da
-Meta — isso aqui ninguém automatiza por você):**
-1. Converta a conta do Instagram (@gridgeral) pra **Business** ou
-   **Creator**, se ainda não for (Configurações → Conta → Mudar para
-   conta profissional, no app do Instagram).
-2. Vincule essa conta a uma **Página do Facebook** (pode ser uma
-   Página nova, só pra isso — Configurações → Conta vinculada, no
-   Instagram, ou pelo Gerenciador de Negócios).
-3. Crie um app em <https://developers.facebook.com/apps/> (tipo
-   "Business"), adicione o produto **Instagram Graph API** a ele.
-4. Gere um **token de acesso de longa duração** (~60 dias, renovável)
-   com as permissões `instagram_basic`, `instagram_content_publish` e
-   `pages_show_list` — mais simples pelo **Graph API Explorer**
-   (<https://developers.facebook.com/tools/explorer/>): selecione o
-   app, a Página, gere um token de usuário de curta duração com essas
-   permissões, e troque por um de longa duração (endpoint
-   `oauth/access_token` com `grant_type=fb_exchange_token` — a própria
-   documentação da Meta explica o passo a passo, isso muda de vez em
-   quando).
-5. Descubra o **ID numérico da conta profissional do Instagram**
-   (não é o `@usuario`): `GET /{id-da-pagina}?fields=instagram_business_account`
-   no Graph API Explorer.
+Meta — isso aqui ninguém automatiza por você).** Usamos o fluxo
+**"Instagram API with Instagram Login"** (a Meta também tem um fluxo
+mais antigo via Página do Facebook — "Instagram API with Facebook
+Login" — mas o de cima é o mais simples: **não exige vincular uma
+Página do Facebook**):
+1. A conta do Instagram (@gridgeral) precisa ser **Business** ou
+   **Creator** (Configurações → Conta → Mudar para conta
+   profissional, no app do Instagram) — sem precisar linkar Página.
+2. Crie um app em <https://developers.facebook.com/apps/> (tipo
+   "Business"), adicione o produto **Instagram** (o card
+   "Instagram API with Instagram Login" / "Business Login for
+   Instagram") a ele.
+3. Gere um **token de acesso de longa duração** (~60 dias, renovável)
+   com as permissões `instagram_business_basic` e
+   `instagram_business_content_publish` — pelo fluxo de login do
+   próprio app (Business Login for Instagram) ou pelo Graph API
+   Explorer, gerando primeiro um token de curta duração (1h) e
+   trocando por um de longa duração em
+   `GET https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=<APP_SECRET>&access_token=<TOKEN_CURTO>`
+   (ver <https://developers.facebook.com/docs/instagram-platform/reference/access_token/>,
+   a Meta pode mudar esse fluxo de vez em quando, vale conferir a doc
+   atual). O token gerado por esse fluxo começa com `IGA...`.
+4. Descubra o **ID numérico da conta do Instagram** (não é o
+   `@usuario`):
+   `GET https://graph.instagram.com/v21.0/me?fields=id,username&access_token=<TOKEN>`.
 
 Com isso em mãos, dois secrets no repositório (mesmo caminho dos
 outros: **Settings → Secrets and variables → Actions**):
-- `INSTAGRAM_ACCESS_TOKEN` — o token de longa duração do passo 4.
-- `INSTAGRAM_BUSINESS_ACCOUNT_ID` — o ID numérico do passo 5.
+- `INSTAGRAM_ACCESS_TOKEN` — o token de longa duração do passo 3
+  (começa com `IGA...`).
+- `INSTAGRAM_BUSINESS_ACCOUNT_ID` — o ID numérico do passo 4.
 
 Sem esses dois secrets configurados, o workflow roda e não faz nada
 (sai de propósito sem erro — mesmo padrão de `GEMINI_API_KEY`
 ausente).
 
-**Corte de segurança:** o Instagram limita a API a 25 publicações por
-conta a cada 24h (Stories incluído nessa conta — mas publicações
-feitas à mão pelo app do Instagram NÃO contam nesse limite, só as
-feitas via API). Ficamos abaixo de propósito: no máximo
-`MAX_INSTAGRAM_POSTS_PER_DAY` (padrão 20, configurável) publicações
-por dia. Cards de matérias com mais de 48h não são mais publicados
-(Stories são conteúdo do "agora" — não faz sentido postar algo de
-dias atrás só porque sobrou cota). O controle do que já foi publicado
-fica em `pipeline/instagram_posted.json` (não apague — sem ele o
-script tentaria republicar tudo de novo).
+**Atenção ao host da API:** um token do fluxo "Instagram Login"
+(`IGA...`) só funciona contra `graph.instagram.com` — chamar
+`graph.facebook.com` com esse token dá erro 190 "Cannot parse access
+token" (é o host do OUTRO fluxo, o antigo via Página do Facebook,
+com token `EAA...`). `pipeline/publish_instagram.py` já usa o host
+certo (`graph.instagram.com`) pro token desse passo a passo; se um
+dia trocar pro fluxo antigo (Página do Facebook), o host também
+precisa mudar junto.
+
+**Corte de segurança:** hoje o Instagram limita a API a 100
+publicações por conta a cada 24h (conteúdo publicado via API — posts
+feitos à mão pelo app do Instagram não contam nesse limite; ver
+<https://developers.facebook.com/docs/instagram-platform/content-publishing>
+pro número atual, a Meta já mudou esse limite antes). Ficamos BEM
+abaixo de propósito: no máximo `MAX_INSTAGRAM_POSTS_PER_DAY` (padrão
+20, configurável) publicações por dia. Cards de matérias com mais de
+48h não são mais publicados (Stories são conteúdo do "agora" — não
+faz sentido postar algo de dias atrás só porque sobrou cota). O
+controle do que já foi publicado fica em
+`pipeline/instagram_posted.json` (não apague — sem ele o script
+tentaria republicar tudo de novo).
 
 Ver `pipeline/publish_instagram.py` pros detalhes de implementação
-(Instagram Graph API: criar container de mídia → esperar processar →
+(Instagram API: criar container de mídia → esperar processar →
 publicar).
 
 ## Rodar localmente (opcional)

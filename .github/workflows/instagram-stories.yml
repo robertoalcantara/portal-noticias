@@ -10,7 +10,7 @@ name: Publicar Stories no Instagram
 # Não gera nem publica matéria nenhuma -- só varre o que já está no site
 # (site/content/posts/ + site/static/images/cards/) e publica o que ainda
 # não foi publicado, respeitando um corte diário de segurança (o
-# Instagram limita a API a 25 publicações/24h). Ver
+# Instagram limita a API a 100 publicações/24h). Ver
 # pipeline/publish_instagram.py e a seção "Publicação automática no
 # Instagram" no README pra pré-requisitos e configuração.
 on:
