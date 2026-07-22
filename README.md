@@ -481,10 +481,18 @@ do funil principal (dá tempo do deploy do Cloudflare Pages propagar; a
 API do Instagram busca a imagem por URL pública, ela precisa estar no
 ar):
 - **Stories:** cada card vira um Story separado (um Story por imagem).
+  **A API da Meta não aceita legenda, link nem sticker de link em
+  Stories publicados via API** — é limitação da própria plataforma
+  (só o app oficial permite adicionar isso manualmente), então o Story
+  sai só com a imagem, sem texto.
 - **Feed:** todos os cards da matéria viram um único post de
   **carrossel** (ou uma imagem única, se a matéria só tiver 1 card),
-  com legenda montada a partir do título/resumo/categoria da matéria e
-  um "link na bio" (Instagram não permite link clicável na legenda).
+  com legenda montada a partir do título/resumo/categoria da matéria,
+  o **link direto da matéria colado como texto** (não é clicável, mas
+  dá pra copiar) e um "link na bio" — as duas formas de link que a API
+  permite. Pro "link na bio" funcionar de verdade, configure a bio de
+  @gridgeral apontando pro site (isso é manual, direto no app do
+  Instagram — não tem API pra isso).
 
 Não depende de qual workflow gerou a matéria (funil automático, modo
 manual etc.) — só varre o que já está publicado e posta o que ainda
@@ -548,9 +556,10 @@ de propósito, com cotas SEPARADAS pra cada formato: no máximo
 `MAX_INSTAGRAM_POSTS_PER_DAY` (padrão 20) Stories e
 `MAX_INSTAGRAM_FEED_POSTS_PER_DAY` (padrão 10) posts de feed, por
 rodada — 30 no total, bem abaixo dos 100, mesmo que as duas cotas
-batam o teto no mesmo dia. Matérias com mais de 48h não geram mais
-Stories nem post de feed novo (conteúdo "do agora" — não faz sentido
-postar algo de dias atrás só porque sobrou cota). O controle do que já
+batam o teto no mesmo dia. Matérias com mais de 1 dia (24h) não geram
+mais Stories nem post de feed novo (conteúdo "do agora" — não faz
+sentido postar algo antigo só porque sobrou cota; esse corte é o
+`MAX_CARD_AGE_HOURS` em `pipeline/publish_instagram.py`). O controle do que já
 foi publicado fica em `pipeline/instagram_posted.json` (Stories) e
 `pipeline/instagram_feed_posted.json` (feed) — não apague nenhum dos
 dois, sem eles o script tentaria republicar tudo de novo.

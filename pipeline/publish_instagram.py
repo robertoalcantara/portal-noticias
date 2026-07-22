@@ -14,12 +14,24 @@ site/content/posts/ + site/static/images/cards/ e publica o que ainda não
 foi publicado.
 
 Duas publicações são feitas por matéria, de forma independente (uma pode
-falhar/ficar pra trás sem afetar a outra):
+falhar/ficar pra trás sem afetar a outra). Só matérias com menos de
+MAX_CARD_AGE_HOURS (hoje 1 dia) geram Story/post novo -- conteúdo velho
+nunca é publicado, mesmo que sobre cota depois (ver
+_iter_recent_articles_with_cards()):
   - Stories: cada card vira um Story separado (1 publicação por imagem).
+    IMPORTANTE: a API de publicação da Meta NÃO aceita legenda, link,
+    sticker de link nem nenhum outro texto em Stories publicados via API
+    -- é uma limitação da própria plataforma (só o app oficial permite
+    adicionar esses elementos manualmente), então o Story sai só com a
+    imagem do card, sem nenhum texto/link.
   - Feed: TODOS os cards da matéria viram um único post de carrossel (ou
     uma imagem única, se só houver 1 card), com legenda montada a partir
-    do título/resumo/categoria da matéria e um call-to-action pro "link
-    na bio" (Instagram não permite link clicável na legenda).
+    do título/resumo/categoria da matéria MAIS o link direto da matéria
+    como texto (Instagram não permite link clicável na legenda, mas pelo
+    menos dá pra copiar) E um call-to-action pro "link na bio" -- as duas
+    formas de link que a API permite. Pra o "link na bio" funcionar de
+    verdade, a bio da conta @gridgeral precisa apontar pro site (isso é
+    configurado manualmente no app do Instagram, não tem API pra isso).
 
 Pré-requisitos no Meta (ver README, seção "Publicação automática no
 Instagram"), feitos manualmente uma vez só -- fluxo "Instagram API with
@@ -125,13 +137,13 @@ IG_USER_ID = os.environ.get("INSTAGRAM_BUSINESS_ACCOUNT_ID", "").strip()
 MAX_POSTS_PER_DAY = int(os.environ.get("MAX_INSTAGRAM_POSTS_PER_DAY", "20"))
 MAX_FEED_POSTS_PER_DAY = int(os.environ.get("MAX_INSTAGRAM_FEED_POSTS_PER_DAY", "10"))
 
-# Stories são conteúdo do "agora" -- não faz sentido postar Stories (ou o
-# post de feed correspondente) de uma matéria de vários dias atrás só
-# porque a cota de um dia mais cheio não alcançou. Cards de matérias mais
-# velhas que isso ficam pra trás de propósito (nunca são postados, mesmo
-# que sobre cota depois). Vale tanto pra Stories quanto pro feed --
-# ambos usam a mesma leva de matérias "recentes com cards".
-MAX_CARD_AGE_HOURS = 48
+# Stories e feed são conteúdo do "agora" -- não faz sentido postar (ou
+# gerar post de feed) de uma matéria de mais de 1 dia só porque a cota
+# de um dia mais cheio não alcançou. Cards de matérias mais velhas que
+# isso ficam pra trás de propósito (nunca são postados, mesmo que sobre
+# cota depois). Vale tanto pra Stories quanto pro feed -- ambos usam a
+# mesma leva de matérias "recentes com cards".
+MAX_CARD_AGE_HOURS = 24
 
 # carrossel do Instagram aceita entre 2 e 10 itens -- se uma matéria tiver
 # mais cards que isso (não deveria, pipeline/cards.py gera poucos), corta
@@ -307,6 +319,17 @@ def post_feed_post(image_urls: list[str], caption: str) -> str:
     return publish_media(carousel_id)
 
 
+def _article_url(base_url: str, filename_base: str, date: datetime) -> str:
+    """Reconstrói o link público da matéria a partir do nome do arquivo
+    (post_filename_base() em generate.py: "{AAAA-MM-DD}-{slug}") e do
+    permalink configurado em site/hugo.toml ([permalinks] posts =
+    "/:year/:month/:slug/"). Usado pra colar o link da matéria na
+    legenda do post de feed (Instagram não deixa link clicável na
+    legenda, mas o texto puro pelo menos dá pra copiar)."""
+    slug = filename_base[11:]  # remove o prefixo "AAAA-MM-DD-"
+    return f"{base_url}/{date:%Y}/{date:%m}/{slug}/"
+
+
 def _post_date(frontmatter: dict) -> datetime | None:
     date = frontmatter.get("date")
     if isinstance(date, datetime):
@@ -324,11 +347,15 @@ def _hashtag(text: str) -> str:
     return f"#{cleaned}" if cleaned else ""
 
 
-def build_feed_caption(frontmatter: dict) -> str:
+def build_feed_caption(frontmatter: dict, article_url: str) -> str:
     """Monta a legenda do post de feed a partir do frontmatter do post
-    (title/summary/categories/tags -- ver write_post() em generate.py).
-    Instagram não permite link clicável na legenda, então pedimos pra
-    acessar o link na bio em vez de colar a URL da matéria."""
+    (title/summary/categories/tags -- ver write_post() em generate.py) E
+    do link da matéria. Instagram não permite link clicável na legenda,
+    então colamos a URL como texto puro (pelo menos dá pra copiar) E
+    também pedimos pra acessar o link na bio -- as duas formas possíveis
+    pela API, já que não existe parâmetro de link/sticker pra legenda ou
+    pra Stories (ver post_story(); Stories não aceitam legenda nem link
+    nenhum via API, é uma limitação da própria Meta)."""
     title = str(frontmatter.get("title", "")).strip()
     summary = str(frontmatter.get("summary", "")).strip()
     categories = frontmatter.get("categories") or []
@@ -347,7 +374,7 @@ def build_feed_caption(frontmatter: dict) -> str:
     parts = [title]
     if summary:
         parts.append(summary)
-    parts.append("Matéria completa no link da bio \U0001F446")
+    parts.append(f"Matéria completa: {article_url}\n(ou no link da bio \U0001F446)")
     parts.append(" ".join(hashtags))
     return "\n\n".join(p for p in parts if p)
 
@@ -479,7 +506,8 @@ def main() -> int:
         for card_path in card_paths[:MAX_CAROUSEL_ITEMS]:
             rel = card_path.relative_to(ROOT / "site" / "static")
             image_urls.append(f"{base_url}/{rel.as_posix()}")
-        caption = build_feed_caption(frontmatter)
+        article_url = _article_url(base_url, filename_base, _date)
+        caption = build_feed_caption(frontmatter, article_url)
         kind = "imagem única" if len(image_urls) == 1 else f"carrossel de {len(image_urls)}"
         print(f"  [Feed {i + 1}/{len(to_post_feed)}] {filename_base} ({kind})")
         try:
