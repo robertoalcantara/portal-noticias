@@ -17,7 +17,7 @@ name: Publicar Stories e feed no Instagram
 # automática no Instagram" no README pra pré-requisitos e configuração.
 on:
   schedule:
-    - cron: "30 0,6,8,10,12,14,16,18,20,22 * * *"   # uma vez por dia ao meio-dia UTC
+    - cron: "30 0,8,10,12,14,16,18,20,22 * * *"   # uma vez por dia ao meio-dia UTC
   workflow_dispatch: {}
 
 # necessário para o job conseguir dar push do controle de já-publicados
