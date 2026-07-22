@@ -383,10 +383,12 @@ interface do Cloudflare. Para isso, dois secrets adicionais no repositório:
   Create Custom Token)
 - `CLOUDFLARE_ACCOUNT_ID` — ID da conta (aparece na URL do dashboard)
 
-Este projeto já está publicado em: **https://portal-noticias-cz7.pages.dev/**
-(o Cloudflare pode adicionar um sufixo aleatório ao nome do projeto se houver
-colisão — confira o `subdomain` retornado na criação do projeto, ou o próprio
-dashboard, e ajuste `baseURL` em `site/hugo.toml` se for diferente).
+Este projeto já está publicado em: **https://gridgeral.com/** (domínio
+próprio, configurado como Custom domain no projeto Cloudflare Pages
+`portal-noticias` — `www.gridgeral.com` também aponta pra lá e redireciona
+pro domínio raiz). O endereço original do projeto,
+`https://portal-noticias-cz7.pages.dev/`, continua funcionando também. Se
+trocar de domínio no futuro, ajuste `baseURL` em `site/hugo.toml`.
 
 ### 4. Gere as primeiras matérias
 No GitHub: aba **Actions → "Atualizar notícias" → Run workflow**.

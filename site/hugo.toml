@@ -1,8 +1,9 @@
-# baseURL do site publicado no Cloudflare Pages (projeto "portal-noticias").
-# O Cloudflare adicionou um sufixo aleatório ao subdomínio (comum quando o
-# nome já tem alguma colisão). Se você conectar um domínio próprio depois
-# (ex.: gridgeral.com), troque aqui.
-baseURL = "https://portal-noticias-cz7.pages.dev/"
+# baseURL do site -- domínio próprio gridgeral.com, conectado ao projeto
+# "portal-noticias" do Cloudflare Pages (que continua acessível também
+# pelo endereço portal-noticias-cz7.pages.dev, mas o canônico é este).
+# www.gridgeral.com também está configurado no Cloudflare Pages e
+# redireciona pra este (ver Redirect Rule na zona gridgeral.com).
+baseURL = "https://gridgeral.com/"
 languageCode = "pt-br"
 title = "Grid Geral"
 enableRobotsTXT = true
