@@ -203,7 +203,7 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 
 /* ---------- grades de card ---------- */
 .grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
 }
 
 /* Carrossel horizontal de categoria (site/layouts/partials/hscroll.html).
@@ -220,6 +220,7 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
   display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory;
   padding: 2px 4px 14px; margin: 0; scroll-padding-left: 4px;
   scrollbar-width: none; -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
   cursor: grab;
   mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
@@ -235,10 +236,10 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 100%);
 }
 .hscroll.is-at-start.is-at-end { mask-image: none; -webkit-mask-image: none; }
-.hscroll .card { flex: 0 0 260px; scroll-snap-align: start; }
+.hscroll .card { flex: 0 0 225px; scroll-snap-align: start; }
 
 .hscroll-btn {
-  position: absolute; top: 72px; width: 38px; height: 38px; border-radius: 50%;
+  position: absolute; top: 45px; width: 38px; height: 38px; border-radius: 50%;
   border: 1px solid var(--line-strong); background: #fff; color: var(--ink);
   display: flex; align-items: center; justify-content: center; padding: 0;
   cursor: pointer; box-shadow: 0 6px 16px rgba(20, 22, 27, 0.14);
@@ -260,7 +261,7 @@ main.wrap { padding-top: 32px; padding-bottom: 72px; }
 .card { display: flex; flex-direction: column; transition: transform 0.25s var(--ease); }
 .card:hover { transform: translateY(-3px); }
 .card-media {
-  display: block; aspect-ratio: 16 / 10; border-radius: 8px; overflow: hidden;
+  display: block; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden;
   background: var(--bg-alt); margin-bottom: 12px;
 }
 .card-media img { transition: transform 0.5s var(--ease); }
