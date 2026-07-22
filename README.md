@@ -307,14 +307,15 @@ pipeline/
   sources.yaml        fontes: RSS ou sites sem feed (raspagem de listagem)
   generate.py          coleta, agrupa, gera e revisa as matérias
   cards.py             renderiza os cards de Stories (Pillow, sem rede)
-  publish_instagram.py publica os cards já gerados como Stories no Instagram
+  publish_instagram.py publica os cards já gerados como Stories + feed no Instagram
   assets/fonts/        fontes usadas nos cards (OFL)
   requirements.txt    dependências Python
   seen.json           controle de matérias já publicadas (não apague)
   instagram_posted.json controle de Stories já publicadas (não apague)
+  instagram_feed_posted.json controle de posts de feed já publicados (não apague)
 .github/workflows/
   update.yml          agenda a cada 3h + botão "Run workflow"
-  instagram-stories.yml agenda de hora em hora, publica Stories pendentes
+  instagram-stories.yml publica Stories + feed pendentes no Instagram
 site/
   hugo.toml           config do site (troque baseURL após publicar)
   layouts/            templates (home tipo portal, cards com cor por categoria)
@@ -470,15 +471,23 @@ do escopo deste modo). Ver env `REPLACE_IMAGE_URL`/
 `pipeline/generate.py`, e o workflow
 `.github/workflows/replace-article-image.yml`.
 
-### 8. (Opcional) Publicação automática no Instagram (Stories)
-Publica os cards de Stories de cada matéria como Stories de verdade em
-**@gridgeral**, automaticamente — workflow separado
-(`.github/workflows/instagram-stories.yml`), agendado pra rodar 15min
-depois do funil principal (dá tempo do deploy do Cloudflare Pages
-propagar; a API do Instagram busca a imagem por URL pública, ela
-precisa estar no ar). Não depende de qual workflow gerou a matéria
-(funil automático, modo manual etc.) — só varre o que já está
-publicado e posta o que ainda não foi.
+### 8. (Opcional) Publicação automática no Instagram (Stories + feed)
+Publica os cards de cada matéria automaticamente em **@gridgeral**, de
+duas formas independentes — workflow separado
+(`.github/workflows/instagram-stories.yml`), agendado pra rodar depois
+do funil principal (dá tempo do deploy do Cloudflare Pages propagar; a
+API do Instagram busca a imagem por URL pública, ela precisa estar no
+ar):
+- **Stories:** cada card vira um Story separado (um Story por imagem).
+- **Feed:** todos os cards da matéria viram um único post de
+  **carrossel** (ou uma imagem única, se a matéria só tiver 1 card),
+  com legenda montada a partir do título/resumo/categoria da matéria e
+  um "link na bio" (Instagram não permite link clicável na legenda).
+
+Não depende de qual workflow gerou a matéria (funil automático, modo
+manual etc.) — só varre o que já está publicado e posta o que ainda
+não foi, em cada um dos dois formatos, de forma independente (um pode
+ficar pra trás sem travar o outro).
 
 **Pré-requisito (feito manualmente, uma vez só, direto no painel da
 Meta — isso aqui ninguém automatiza por você).** Usamos o fluxo
@@ -527,21 +536,27 @@ dia trocar pro fluxo antigo (Página do Facebook), o host também
 precisa mudar junto.
 
 **Corte de segurança:** hoje o Instagram limita a API a 100
-publicações por conta a cada 24h (conteúdo publicado via API — posts
-feitos à mão pelo app do Instagram não contam nesse limite; ver
+publicações por conta a cada 24h, somando TODOS os tipos de conteúdo
+publicado via API — Stories, feed, reels (um carrossel conta como 1
+publicação, não uma por imagem; ver
 <https://developers.facebook.com/docs/instagram-platform/content-publishing>
-pro número atual, a Meta já mudou esse limite antes). Ficamos BEM
-abaixo de propósito: no máximo `MAX_INSTAGRAM_POSTS_PER_DAY` (padrão
-20, configurável) publicações por dia. Cards de matérias com mais de
-48h não são mais publicados (Stories são conteúdo do "agora" — não
-faz sentido postar algo de dias atrás só porque sobrou cota). O
-controle do que já foi publicado fica em
-`pipeline/instagram_posted.json` (não apague — sem ele o script
-tentaria republicar tudo de novo).
+pro número atual, a Meta já mudou esse limite antes; posts feitos à
+mão pelo app do Instagram não contam nesse limite). Ficamos BEM abaixo
+de propósito, com cotas SEPARADAS pra cada formato: no máximo
+`MAX_INSTAGRAM_POSTS_PER_DAY` (padrão 20) Stories e
+`MAX_INSTAGRAM_FEED_POSTS_PER_DAY` (padrão 10) posts de feed, por
+rodada — 30 no total, bem abaixo dos 100, mesmo que as duas cotas
+batam o teto no mesmo dia. Matérias com mais de 48h não geram mais
+Stories nem post de feed novo (conteúdo "do agora" — não faz sentido
+postar algo de dias atrás só porque sobrou cota). O controle do que já
+foi publicado fica em `pipeline/instagram_posted.json` (Stories) e
+`pipeline/instagram_feed_posted.json` (feed) — não apague nenhum dos
+dois, sem eles o script tentaria republicar tudo de novo.
 
 Ver `pipeline/publish_instagram.py` pros detalhes de implementação
 (Instagram API: criar container de mídia → esperar processar →
-publicar).
+publicar; carrossel usa `is_carousel_item` por imagem + um container
+"pai" com `children`).
 
 ## Rodar localmente (opcional)
 

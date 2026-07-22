@@ -1,18 +1,20 @@
-name: Publicar Stories no Instagram
+name: Publicar Stories e feed no Instagram
 
 # Workflow separado do "Atualizar notícias": publica os cards de Stories
-# já gerados (qualquer matéria, de qualquer workflow) como Stories de
-# verdade em @gridgeral, via Instagram Graph API. Agendado pra alguns
-# minutos DEPOIS do funil principal (cron "0 * * * *") -- a API do
-# Instagram busca a imagem por URL pública, então o deploy do Cloudflare
-# Pages precisa já ter acontecido antes de tentar publicar.
+# já gerados (qualquer matéria, de qualquer workflow) como Stories DE
+# VERDADE em @gridgeral, e também um post de carrossel (ou imagem única)
+# no FEED com as mesmas imagens -- via Instagram Graph API. Agendado pra
+# rodar depois do funil principal -- a API do Instagram busca a imagem
+# por URL pública, então o deploy do Cloudflare Pages precisa já ter
+# acontecido antes de tentar publicar.
 #
 # Não gera nem publica matéria nenhuma -- só varre o que já está no site
-# (site/content/posts/ + site/static/images/cards/) e publica o que ainda
-# não foi publicado, respeitando um corte diário de segurança (o
-# Instagram limita a API a 100 publicações/24h). Ver
-# pipeline/publish_instagram.py e a seção "Publicação automática no
-# Instagram" no README pra pré-requisitos e configuração.
+# (site/content/posts/ + site/static/images/cards/) e publica (Stories e
+# feed, cada um com seu próprio controle de já-publicados) o que ainda
+# não foi publicado, respeitando cortes diários de segurança (o
+# Instagram limita a API a 100 publicações/24h, somando todos os tipos
+# de conteúdo). Ver pipeline/publish_instagram.py e a seção "Publicação
+# automática no Instagram" no README pra pré-requisitos e configuração.
 on:
   schedule:
     - cron: "00 12 * * *"   # uma vez por dia ao meio-dia UTC
@@ -39,7 +41,7 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Publicar Stories pendentes
+      - name: Publicar Stories e feed pendentes
         env:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ secrets.INSTAGRAM_BUSINESS_ACCOUNT_ID }}
@@ -49,7 +51,7 @@ jobs:
         run: |
           git config user.name  "news-bot"
           git config user.email "news-bot@users.noreply.github.com"
-          git add pipeline/instagram_posted.json
+          git add pipeline/instagram_posted.json pipeline/instagram_feed_posted.json
           if git diff --cached --quiet; then
             echo "Nada novo publicado nesta rodada."
             exit 0

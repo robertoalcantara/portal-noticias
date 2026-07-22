@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Publica os cards de Stories (gerados por pipeline/cards.py) como Stories de
-verdade no Instagram (@gridgeral), via Instagram Graph API (Meta).
+verdade no Instagram (@gridgeral), E também um post de carrossel no FEED
+(mesmas imagens dos cards, com legenda) -- via Instagram Graph API (Meta).
 
 Roda como workflow SEPARADO (.github/workflows/instagram-stories.yml),
 agendado pra alguns minutos depois do funil principal ("Atualizar
@@ -11,6 +12,14 @@ publicar. Não depende de qual workflow gerou a matéria (funil automático,
 modo manual etc.) -- só varre o que já está publicado em
 site/content/posts/ + site/static/images/cards/ e publica o que ainda não
 foi publicado.
+
+Duas publicações são feitas por matéria, de forma independente (uma pode
+falhar/ficar pra trás sem afetar a outra):
+  - Stories: cada card vira um Story separado (1 publicação por imagem).
+  - Feed: TODOS os cards da matéria viram um único post de carrossel (ou
+    uma imagem única, se só houver 1 card), com legenda montada a partir
+    do título/resumo/categoria da matéria e um call-to-action pro "link
+    na bio" (Instagram não permite link clicável na legenda).
 
 Pré-requisitos no Meta (ver README, seção "Publicação automática no
 Instagram"), feitos manualmente uma vez só -- fluxo "Instagram API with
@@ -39,25 +48,39 @@ Env vars:
                                  site/hugo.toml) -- de onde monta a URL
                                  pública de cada imagem de card.
   MAX_INSTAGRAM_POSTS_PER_DAY   (opcional, padrão: 20) -- corte de
-                                 segurança por rodada: hoje o Instagram
-                                 limita a API a 100 publicações por conta
-                                 a cada 24h (conteúdo publicado via API --
-                                 posts feitos manualmente pelo app/site do
-                                 Instagram não contam nesse limite; ver
+                                 segurança pra Stories, por rodada.
+  MAX_INSTAGRAM_FEED_POSTS_PER_DAY (opcional, padrão: 10) -- corte de
+                                 segurança pra posts de feed, por rodada
+                                 (independente da cota de Stories).
+                                 Hoje o Instagram limita a API a 100
+                                 publicações por conta a cada 24h, somando
+                                 TODOS os tipos de conteúdo publicado via
+                                 API (Stories + feed + reels; um carrossel
+                                 conta como 1 publicação, não uma por
+                                 imagem) -- posts feitos manualmente pelo
+                                 app/site do Instagram não contam nesse
+                                 limite. Ver
                                  developers.facebook.com/docs/instagram-platform/content-publishing
                                  pro número atual, a Meta já mudou esse
-                                 limite antes). Ficamos BEM abaixo de
-                                 propósito, com folga.
+                                 limite antes. As duas cotas acima somadas
+                                 (20 + 10 = 30) ficam BEM abaixo dos 100,
+                                 de propósito, mesmo que as duas rodadas
+                                 batam o teto no mesmo dia.
 
 Se INSTAGRAM_ACCESS_TOKEN ou INSTAGRAM_BUSINESS_ACCOUNT_ID não estiverem
 definidas, o script sai silenciosamente sem fazer nada -- funcionalidade
 opcional, mesmo padrão de GEMINI_API_KEY/DEEPSEEK_API_KEY no resto do
 pipeline (não quebra o resto do projeto pra quem não configurou isso).
 
-Controle do que já foi postado: pipeline/instagram_posted.json (lista de
-registros, um por card publicado -- ver _load_posted()/_save_posted()).
-Nunca reposta o mesmo card, e serve também pra calcular quantas
-publicações já aconteceram nas últimas 24h (pro corte de segurança acima).
+Controle do que já foi postado:
+  - pipeline/instagram_posted.json       -- Stories, um registro por card
+    publicado (card_id = "<matéria>/<arquivo>.png").
+  - pipeline/instagram_feed_posted.json  -- Feed, um registro por MATÉRIA
+    publicada (article_id = "<matéria>", já que o post de feed é um só
+    por matéria, carrossel ou imagem única).
+Nunca reposta a mesma coisa duas vezes, e cada arquivo serve também pra
+calcular quantas publicações daquele tipo já aconteceram nas últimas 24h
+(pro corte de segurança de cada um, acima).
 """
 
 from __future__ import annotations
@@ -67,6 +90,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -82,6 +106,7 @@ ROOT = Path(__file__).resolve().parent.parent
 POSTS_DIR = ROOT / "site" / "content" / "posts"
 CARDS_IMAGES_DIR = ROOT / "site" / "static" / "images" / "cards"
 POSTED_FILE = ROOT / "pipeline" / "instagram_posted.json"
+FEED_POSTED_FILE = ROOT / "pipeline" / "instagram_feed_posted.json"
 HUGO_CONFIG_FILE = ROOT / "site" / "hugo.toml"
 
 GRAPH_API_VERSION = "v21.0"  # se a Meta descontinuar essa versão, só trocar aqui
@@ -98,18 +123,29 @@ GRAPH_API_BASE = f"https://graph.instagram.com/{GRAPH_API_VERSION}"
 ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "").strip()
 IG_USER_ID = os.environ.get("INSTAGRAM_BUSINESS_ACCOUNT_ID", "").strip()
 MAX_POSTS_PER_DAY = int(os.environ.get("MAX_INSTAGRAM_POSTS_PER_DAY", "20"))
+MAX_FEED_POSTS_PER_DAY = int(os.environ.get("MAX_INSTAGRAM_FEED_POSTS_PER_DAY", "10"))
 
-# Stories são conteúdo do "agora" -- não faz sentido postar Stories de uma
-# matéria de vários dias atrás só porque a cota de um dia mais cheio não
-# alcançou. Cards de matérias mais velhas que isso ficam pra trás de
-# propósito (nunca são postados, mesmo que sobre cota depois).
+# Stories são conteúdo do "agora" -- não faz sentido postar Stories (ou o
+# post de feed correspondente) de uma matéria de vários dias atrás só
+# porque a cota de um dia mais cheio não alcançou. Cards de matérias mais
+# velhas que isso ficam pra trás de propósito (nunca são postados, mesmo
+# que sobre cota depois). Vale tanto pra Stories quanto pro feed --
+# ambos usam a mesma leva de matérias "recentes com cards".
 MAX_CARD_AGE_HOURS = 48
+
+# carrossel do Instagram aceita entre 2 e 10 itens -- se uma matéria tiver
+# mais cards que isso (não deveria, pipeline/cards.py gera poucos), corta
+# nos 10 primeiros em vez de falhar.
+MAX_CAROUSEL_ITEMS = 10
 
 # pausa entre publicações seguidas nesta rodada -- cortesia com a API,
 # evita rajada de requisições.
 SLEEP_BETWEEN_POSTS_SECONDS = 5
 
 _FRONTMATTER_PATTERN = re.compile(r"^\+\+\+\n(.*?)\n\+\+\+\n", re.S)
+
+# hashtag fixa da marca, em todo post de feed.
+BRAND_HASHTAGS = ["#GridGeral", "#Automobilismo"]
 
 
 def _read_site_base_url() -> str:
@@ -123,18 +159,18 @@ def _read_site_base_url() -> str:
     return m.group(1).rstrip("/")
 
 
-def _load_posted() -> list[dict]:
-    if not POSTED_FILE.exists():
+def _load_json_list(path: Path) -> list[dict]:
+    if not path.exists():
         return []
     try:
-        return json.loads(POSTED_FILE.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
-        print(f"aviso: {POSTED_FILE} ilegível, tratando como vazio", file=sys.stderr)
+        print(f"aviso: {path} ilegível, tratando como vazio", file=sys.stderr)
         return []
 
 
-def _save_posted(records: list[dict]) -> None:
-    POSTED_FILE.write_text(
+def _save_json_list(path: Path, records: list[dict]) -> None:
+    path.write_text(
         json.dumps(records, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
@@ -166,17 +202,38 @@ def _api_request(url: str, params: dict, method: str = "POST") -> dict:
         raise RuntimeError(f"HTTP {exc.code} de {url}: {detail}") from exc
 
 
-def create_story_container(image_url: str) -> str:
-    """Passo 1: cria um container de mídia pro Story (a API baixa a
-    imagem da URL informada -- assíncrono, ver wait_container_ready)."""
-    data = _api_request(
-        f"{GRAPH_API_BASE}/{IG_USER_ID}/media",
-        {
-            "image_url": image_url,
-            "media_type": "STORIES",
-            "access_token": ACCESS_TOKEN,
-        },
-    )
+def create_media_container(
+    image_url: str,
+    *,
+    media_type: str | None = None,
+    is_carousel_item: bool = False,
+    caption: str | None = None,
+    children: list[str] | None = None,
+) -> str:
+    """Cria um container de mídia genérico (a API baixa a imagem/monta o
+    carrossel de forma assíncrona -- ver wait_container_ready). Um único
+    endpoint (/media) serve pra Stories, item de carrossel, carrossel
+    completo (com `children`) e post de imagem única no feed -- o que
+    muda é a combinação de parâmetros:
+      - Story:            media_type="STORIES", image_url=...
+      - item de carrossel: is_carousel_item=True, image_url=...
+      - carrossel (pai):   media_type="CAROUSEL", children=[...ids...], caption=...
+      - imagem única (feed): image_url=..., caption=... (sem media_type)
+    """
+    params: dict = {"access_token": ACCESS_TOKEN}
+    if children is not None:
+        params["media_type"] = "CAROUSEL"
+        params["children"] = ",".join(children)
+    else:
+        params["image_url"] = image_url
+        if media_type:
+            params["media_type"] = media_type
+        if is_carousel_item:
+            params["is_carousel_item"] = "true"
+    if caption:
+        params["caption"] = caption
+
+    data = _api_request(f"{GRAPH_API_BASE}/{IG_USER_ID}/media", params)
     creation_id = data.get("id")
     if not creation_id:
         raise RuntimeError(f"resposta sem 'id' ao criar container: {data}")
@@ -184,9 +241,10 @@ def create_story_container(image_url: str) -> str:
 
 
 def wait_container_ready(creation_id: str, attempts: int = 10, delay_seconds: int = 3) -> None:
-    """Passo 2: espera o container terminar de processar (status_code
-    FINISHED) antes de publicar -- pra imagem costuma ser rápido, mas a
-    Meta recomenda checar em vez de publicar direto."""
+    """Espera o container terminar de processar (status_code FINISHED)
+    antes de publicar -- pra imagem costuma ser rápido, mas a Meta
+    recomenda checar em vez de publicar direto. Vale tanto pra Stories
+    quanto pra itens/carrossel de feed."""
     status = None
     for _ in range(attempts):
         data = _api_request(
@@ -203,8 +261,9 @@ def wait_container_ready(creation_id: str, attempts: int = 10, delay_seconds: in
     raise RuntimeError(f"container {creation_id} não ficou pronto a tempo (status={status!r})")
 
 
-def publish_story(creation_id: str) -> str:
-    """Passo 3: publica de verdade o container já pronto."""
+def publish_media(creation_id: str) -> str:
+    """Publica de verdade um container já pronto (Story, imagem única ou
+    carrossel completo -- mesmo endpoint pros três)."""
     data = _api_request(
         f"{GRAPH_API_BASE}/{IG_USER_ID}/media_publish",
         {"creation_id": creation_id, "access_token": ACCESS_TOKEN},
@@ -220,9 +279,32 @@ def post_story(image_url: str) -> str:
     os 3 passos (criar container / esperar / publicar). Devolve o media id
     publicado; levanta exceção em qualquer falha (quem chama trata isso
     como não-fatal, ver main())."""
-    creation_id = create_story_container(image_url)
+    creation_id = create_media_container(image_url, media_type="STORIES")
     wait_container_ready(creation_id)
-    return publish_story(creation_id)
+    return publish_media(creation_id)
+
+
+def post_feed_post(image_urls: list[str], caption: str) -> str:
+    """Publica UM post de feed a partir de uma ou mais imagens: imagem
+    única se só houver uma URL, carrossel (2 a MAX_CAROUSEL_ITEMS itens)
+    se houver mais. Devolve o media id publicado; levanta exceção em
+    qualquer falha (quem chama trata isso como não-fatal, ver main())."""
+    urls = image_urls[:MAX_CAROUSEL_ITEMS]
+
+    if len(urls) == 1:
+        creation_id = create_media_container(urls[0], caption=caption)
+        wait_container_ready(creation_id)
+        return publish_media(creation_id)
+
+    item_ids: list[str] = []
+    for url in urls:
+        item_id = create_media_container(url, is_carousel_item=True)
+        wait_container_ready(item_id)
+        item_ids.append(item_id)
+
+    carousel_id = create_media_container("", children=item_ids, caption=caption)
+    wait_container_ready(carousel_id)
+    return publish_media(carousel_id)
 
 
 def _post_date(frontmatter: dict) -> datetime | None:
@@ -232,17 +314,55 @@ def _post_date(frontmatter: dict) -> datetime | None:
     return None
 
 
-def find_pending_cards(already_posted: set[str]) -> list[tuple[datetime, str, Path]]:
+def _hashtag(text: str) -> str:
+    """Normaliza uma string livre (categoria, tag) pra virar hashtag:
+    tira acento, mantém só letras/números, sem espaço. Ex.: "Fórmula 1"
+    -> "#Formula1". Devolve "" se não sobrar nada aproveitável."""
+    normalized = unicodedata.normalize("NFKD", text)
+    ascii_only = "".join(c for c in normalized if not unicodedata.combining(c))
+    cleaned = re.sub(r"[^0-9A-Za-z]", "", ascii_only)
+    return f"#{cleaned}" if cleaned else ""
+
+
+def build_feed_caption(frontmatter: dict) -> str:
+    """Monta a legenda do post de feed a partir do frontmatter do post
+    (title/summary/categories/tags -- ver write_post() em generate.py).
+    Instagram não permite link clicável na legenda, então pedimos pra
+    acessar o link na bio em vez de colar a URL da matéria."""
+    title = str(frontmatter.get("title", "")).strip()
+    summary = str(frontmatter.get("summary", "")).strip()
+    categories = frontmatter.get("categories") or []
+    tags = frontmatter.get("tags") or []
+
+    hashtags = list(BRAND_HASHTAGS)
+    if categories:
+        tag = _hashtag(str(categories[0]))
+        if tag:
+            hashtags.append(tag)
+    for t in tags[:3]:
+        tag = _hashtag(str(t))
+        if tag and tag not in hashtags:
+            hashtags.append(tag)
+
+    parts = [title]
+    if summary:
+        parts.append(summary)
+    parts.append("Matéria completa no link da bio \U0001F446")
+    parts.append(" ".join(hashtags))
+    return "\n\n".join(p for p in parts if p)
+
+
+def _iter_recent_articles_with_cards() -> list[tuple[datetime, str, dict, list[Path]]]:
     """Varre site/content/posts em busca de matérias com cards em
-    site/static/images/cards/<mesmo-nome>/ ainda não postados no
-    Instagram, mais novas que MAX_CARD_AGE_HOURS. Devolve uma lista de
-    (data_da_matéria, identificador_do_card, caminho_do_arquivo), da mais
-    antiga pra mais nova (FIFO -- nada fica preso atrás de conteúdo mais
-    novo pra sempre)."""
+    site/static/images/cards/<mesmo-nome>/, mais novas que
+    MAX_CARD_AGE_HOURS -- a mesma leva de matérias serve de base tanto
+    pra Stories (find_pending_cards) quanto pro feed
+    (find_pending_feed_articles). Devolve (data, filename_base,
+    frontmatter, lista_de_cards_ordenada), da mais antiga pra mais nova."""
     if not POSTS_DIR.exists() or not CARDS_IMAGES_DIR.exists():
         return []
     cutoff = datetime.now(timezone.utc) - timedelta(hours=MAX_CARD_AGE_HOURS)
-    pending: list[tuple[datetime, str, Path]] = []
+    articles: list[tuple[datetime, str, dict, list[Path]]] = []
     for post_path in POSTS_DIR.glob("*.md"):
         filename_base = post_path.stem
         cards_dir = CARDS_IMAGES_DIR / filename_base
@@ -257,13 +377,37 @@ def find_pending_cards(already_posted: set[str]) -> list[tuple[datetime, str, Pa
         date = _post_date(frontmatter)
         if date is None or date < cutoff:
             continue
-        for card_path in sorted(cards_dir.glob("*.png")):
+        card_paths = sorted(cards_dir.glob("*.png"))
+        if not card_paths:
+            continue
+        articles.append((date, filename_base, frontmatter, card_paths))
+    articles.sort(key=lambda item: item[0])
+    return articles
+
+
+def find_pending_cards(
+    articles: list[tuple[datetime, str, dict, list[Path]]], already_posted: set[str]
+) -> list[tuple[datetime, str, Path]]:
+    """A partir da leva de matérias recentes com cards, devolve os cards
+    individuais ainda não postados como Story: (data, identificador do
+    card, caminho do arquivo), da mais antiga pra mais nova."""
+    pending: list[tuple[datetime, str, Path]] = []
+    for date, filename_base, _frontmatter, card_paths in articles:
+        for card_path in card_paths:
             identifier = f"{filename_base}/{card_path.name}"
             if identifier in already_posted:
                 continue
             pending.append((date, identifier, card_path))
-    pending.sort(key=lambda item: item[0])
     return pending
+
+
+def find_pending_feed_articles(
+    articles: list[tuple[datetime, str, dict, list[Path]]], already_posted: set[str]
+) -> list[tuple[datetime, str, dict, list[Path]]]:
+    """A partir da mesma leva de matérias recentes com cards, devolve as
+    que ainda não geraram post de feed (um post por matéria inteira,
+    carrossel ou imagem única -- ver post_feed_post)."""
+    return [a for a in articles if a[1] not in already_posted]
 
 
 def main() -> int:
@@ -275,36 +419,33 @@ def main() -> int:
         return 0
 
     base_url = os.environ.get("SITE_BASE_URL", "").strip() or _read_site_base_url()
+    articles = _iter_recent_articles_with_cards()
 
-    records = _load_posted()
-    already_posted = {r["card_id"] for r in records}
-    posted_last_24h = _posts_last_24h(records)
-    remaining_quota = max(0, MAX_POSTS_PER_DAY - posted_last_24h)
+    # --- Stories -----------------------------------------------------
+    story_records = _load_json_list(POSTED_FILE)
+    already_posted_stories = {r["card_id"] for r in story_records}
+    stories_last_24h = _posts_last_24h(story_records)
+    stories_quota = max(0, MAX_POSTS_PER_DAY - stories_last_24h)
 
-    print(f"Publicações nas últimas 24h: {posted_last_24h}/{MAX_POSTS_PER_DAY}")
-    if remaining_quota <= 0:
-        print("Cota diária (de segurança) atingida -- nada a fazer nesta rodada.")
-        return 0
+    print(f"Stories nas últimas 24h: {stories_last_24h}/{MAX_POSTS_PER_DAY}")
+    pending_cards = find_pending_cards(articles, already_posted_stories)
+    print(f"Cards pendentes (< {MAX_CARD_AGE_HOURS}h, ainda não postados como Story): {len(pending_cards)}")
 
-    pending = find_pending_cards(already_posted)
-    print(f"Cards pendentes (< {MAX_CARD_AGE_HOURS}h, ainda não postados): {len(pending)}")
-    if not pending:
-        return 0
+    to_post_stories = pending_cards[:stories_quota] if stories_quota > 0 else []
+    if stories_quota <= 0:
+        print("Cota diária de Stories (de segurança) atingida -- nada a fazer nesta rodada.")
 
-    to_post = pending[:remaining_quota]
-    print(f"Publicando até {len(to_post)} Stories nesta rodada (cota restante: {remaining_quota})...")
-
-    posted_now = 0
-    for i, (_date, identifier, card_path) in enumerate(to_post):
+    posted_stories_now = 0
+    for i, (_date, identifier, card_path) in enumerate(to_post_stories):
         rel = card_path.relative_to(ROOT / "site" / "static")
         image_url = f"{base_url}/{rel.as_posix()}"
-        print(f"  [{i + 1}/{len(to_post)}] {identifier} -> {image_url}")
+        print(f"  [Story {i + 1}/{len(to_post_stories)}] {identifier} -> {image_url}")
         try:
             media_id = post_story(image_url)
         except Exception as exc:  # noqa: BLE001
-            print(f"    erro ao publicar: {exc}", file=sys.stderr)
+            print(f"    erro ao publicar Story: {exc}", file=sys.stderr)
             continue
-        records.append(
+        story_records.append(
             {
                 "card_id": identifier,
                 "image_url": image_url,
@@ -312,12 +453,53 @@ def main() -> int:
                 "posted_at": datetime.now(timezone.utc).isoformat(),
             }
         )
-        posted_now += 1
-        _save_posted(records)  # grava incrementalmente -- uma falha no meio não perde o que já foi postado
-        if i < len(to_post) - 1:
-            time.sleep(SLEEP_BETWEEN_POSTS_SECONDS)
+        posted_stories_now += 1
+        _save_json_list(POSTED_FILE, story_records)  # grava incrementalmente -- uma falha no meio não perde o que já foi postado
+        time.sleep(SLEEP_BETWEEN_POSTS_SECONDS)
 
-    print(f"\n✓ {posted_now}/{len(to_post)} Stories publicadas com sucesso.")
+    print(f"✓ {posted_stories_now}/{len(to_post_stories)} Stories publicadas com sucesso.\n")
+
+    # --- Feed (carrossel/imagem única) --------------------------------
+    feed_records = _load_json_list(FEED_POSTED_FILE)
+    already_posted_feed = {r["article_id"] for r in feed_records}
+    feed_last_24h = _posts_last_24h(feed_records)
+    feed_quota = max(0, MAX_FEED_POSTS_PER_DAY - feed_last_24h)
+
+    print(f"Posts de feed nas últimas 24h: {feed_last_24h}/{MAX_FEED_POSTS_PER_DAY}")
+    pending_feed = find_pending_feed_articles(articles, already_posted_feed)
+    print(f"Matérias pendentes (< {MAX_CARD_AGE_HOURS}h, ainda sem post de feed): {len(pending_feed)}")
+
+    to_post_feed = pending_feed[:feed_quota] if feed_quota > 0 else []
+    if feed_quota <= 0:
+        print("Cota diária de posts de feed (de segurança) atingida -- nada a fazer nesta rodada.")
+
+    posted_feed_now = 0
+    for i, (_date, filename_base, frontmatter, card_paths) in enumerate(to_post_feed):
+        image_urls = []
+        for card_path in card_paths[:MAX_CAROUSEL_ITEMS]:
+            rel = card_path.relative_to(ROOT / "site" / "static")
+            image_urls.append(f"{base_url}/{rel.as_posix()}")
+        caption = build_feed_caption(frontmatter)
+        kind = "imagem única" if len(image_urls) == 1 else f"carrossel de {len(image_urls)}"
+        print(f"  [Feed {i + 1}/{len(to_post_feed)}] {filename_base} ({kind})")
+        try:
+            media_id = post_feed_post(image_urls, caption)
+        except Exception as exc:  # noqa: BLE001
+            print(f"    erro ao publicar no feed: {exc}", file=sys.stderr)
+            continue
+        feed_records.append(
+            {
+                "article_id": filename_base,
+                "image_urls": image_urls,
+                "media_id": media_id,
+                "posted_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        posted_feed_now += 1
+        _save_json_list(FEED_POSTED_FILE, feed_records)  # grava incrementalmente
+        time.sleep(SLEEP_BETWEEN_POSTS_SECONDS)
+
+    print(f"✓ {posted_feed_now}/{len(to_post_feed)} posts de feed publicados com sucesso.")
     return 0
 
 
