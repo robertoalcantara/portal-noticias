@@ -15,7 +15,7 @@ name: Publicar Stories no Instagram
 # Instagram" no README pra pré-requisitos e configuração.
 on:
   schedule:
-    - cron: "00 12 * * *"   # 15 min depois do funil principal, pra dar tempo do deploy propagar
+    - cron: "00 12 * * *"   # uma vez por dia ao meio-dia UTC
   workflow_dispatch: {}
 
 # necessário para o job conseguir dar push do controle de já-publicados
@@ -52,7 +52,23 @@ jobs:
           git add pipeline/instagram_posted.json
           if git diff --cached --quiet; then
             echo "Nada novo publicado nesta rodada."
-          else
-            git commit -m "Stories publicadas no Instagram ($(date -u +%Y-%m-%dT%H:%MZ))"
-            git push
+            exit 0
           fi
+          git commit -m "Stories publicadas no Instagram ($(date -u +%Y-%m-%dT%H:%MZ))"
+          # o checkout deste job foi feito no início da run -- outro workflow
+          # (ex.: "Atualizar notícias") pode ter dado push no main enquanto as
+          # Stories estavam sendo publicadas (passo anterior demora minutos),
+          # o que faria esse push simples falhar por non-fast-forward e
+          # perder o registro de já-publicados (já aconteceu -- ver histórico).
+          # Por isso: tenta rebase + push algumas vezes antes de desistir.
+          for tentativa in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejeitado (tentativa $tentativa/5) -- rebaseando sobre origin/main e tentando de novo..."
+            git fetch origin main
+            git rebase origin/main
+            sleep 5
+          done
+          echo "Não consegui dar push do controle de já-publicados após 5 tentativas." >&2
+          exit 1
