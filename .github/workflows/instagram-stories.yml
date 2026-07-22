@@ -15,7 +15,7 @@ name: Publicar Stories no Instagram
 # Instagram" no README pra pré-requisitos e configuração.
 on:
   schedule:
-    - cron: "15 * * * *"   # 15 min depois do funil principal, pra dar tempo do deploy propagar
+    - cron: "00 12 * * *"   # 15 min depois do funil principal, pra dar tempo do deploy propagar
   workflow_dispatch: {}
 
 # necessário para o job conseguir dar push do controle de já-publicados
