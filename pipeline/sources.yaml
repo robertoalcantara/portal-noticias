@@ -66,6 +66,10 @@ feeds:
     list_url: "https://tkart.it/en/news"
     link_contains: "/en/news/"
 
+  - name: "Kartmag"
+    type: rss
+    url: "https://www.kartmag.fr/feed/"
+
   # --- Kart / automobilismo brasileiro (sem RSS -> raspagem da listagem) ---
   - name: "CBA"
     type: list
