@@ -608,6 +608,23 @@ def is_source_date_stale(date: datetime) -> bool:
     return date < datetime.now(timezone.utc) - timedelta(days=MAX_SOURCE_DATE_AGE_DAYS)
 
 
+def clamp_future_date(date: datetime) -> datetime:
+    """Corrige data de fonte que vem no futuro -- feed RSS com pubDate
+    errado (fuso/relógio do servidor da fonte), ou o extrator de data de
+    página sem RSS (trafilatura/htmldate, ver collect_list_candidates)
+    confundindo a data de publicação com outra data mencionada no texto
+    (ex.: a data de uma prova futura citada na matéria). Sem isso, o post
+    nasce com `date` no futuro no frontmatter e o Hugo exclui ele
+    SILENCIOSAMENTE do build (não usamos --buildFuture) -- a matéria e os
+    cards são gravados e commitados normalmente, o Instagram acha os
+    cards e publica normalmente (publish_instagram.py só olha o
+    frontmatter do post, não o site já construído), mas a matéria nunca
+    aparece no site enquanto a data não passar (e mesmo depois, só no
+    PRÓXIMO build)."""
+    now = datetime.now(timezone.utc)
+    return min(date, now)
+
+
 def entry_date_from_struct(struct_time) -> datetime:
     if struct_time:
         return datetime(*struct_time[:6], tzinfo=timezone.utc)
@@ -661,6 +678,7 @@ def collect_rss_candidates(feed_cfg: dict, seen: set[str]) -> tuple[list[dict], 
         date = entry_date_from_struct(
             entry.get("published_parsed") or entry.get("updated_parsed")
         )
+        date = clamp_future_date(date)
         if is_source_date_stale(date):
             stats["descartadas_data"] += 1
             print(f"    descartado (>{MAX_SOURCE_DATE_AGE_DAYS}d, {date.date()}): {title[:70]}")
@@ -751,6 +769,7 @@ def collect_list_candidates(feed_cfg: dict, seen: set[str]) -> tuple[list[dict],
                 date = datetime.fromisoformat(str(raw_date)).replace(tzinfo=timezone.utc)
             except Exception:  # noqa: BLE001
                 pass
+        date = clamp_future_date(date)
         if is_source_date_stale(date):
             stats["descartadas_data"] += 1
             print(f"    descartado (>{MAX_SOURCE_DATE_AGE_DAYS}d, {date.date()}): {title[:70]}")
@@ -1579,9 +1598,27 @@ def post_filename_base(article: dict, date: datetime) -> str:
     página de cards — precisam ser IGUAIS pra que os permalinks de
     site/content/posts e site/content/cards caiam no mesmo :year/:month/
     :slug (ver [permalinks] em site/hugo.toml) e a página de cards fique
-    em <permalink-do-post>cards/."""
+    em <permalink-do-post>cards/.
+
+    Garante que o nome não colida com um post OU página de cards já
+    existente: sem isso, duas matérias diferentes com título parecido no
+    mesmo dia (ex.: dois grupos distintos que o agrupamento não uniu, mas
+    que o slugify(title)[:70] corta pro mesmo texto) resultariam no MESMO
+    arquivo -- e write_post() simplesmente sobrescreveria a matéria
+    anterior (cards, imagem e tudo) sem aviso nenhum, fazendo ela
+    "desaparecer" do site mesmo já tendo sido publicada (inclusive já
+    tendo virado Stories/post no Instagram, cujo link na legenda passaria
+    a apontar pra OUTRA matéria, ou a mesma URL sumiria se o rebuild ainda
+    não tivesse rodado). Se colidir, acrescenta -2, -3... até achar um
+    nome livre."""
     slug = slugify(article["titulo"])[:70] or "materia"
-    return f"{date:%Y-%m-%d}-{slug}"
+    base = f"{date:%Y-%m-%d}-{slug}"
+    candidate = base
+    suffix = 2
+    while (POSTS_DIR / f"{candidate}.md").exists() or (CARDS_CONTENT_DIR / f"{candidate}.md").exists():
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
 
 
 def write_post(
@@ -1858,15 +1895,33 @@ def process_group(
             stats["n_cards_gerados"] += 1
             print(f"    cards: {len(card_urls)} gerado(s)")
 
-        write_post(
-            article,
-            source_names,
-            links,
-            publish_date,
-            image_info,
-            has_cards=bool(card_urls),
-            author_name=writer.author_name,
-        )
+        try:
+            write_post(
+                article,
+                source_names,
+                links,
+                publish_date,
+                image_info,
+                has_cards=bool(card_urls),
+                author_name=writer.author_name,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Se a gravação do POST falhar depois que os cards já foram
+            # gerados e gravados em disco (ver generate_and_render_cards,
+            # chamado ANTES desta linha), NÃO pode sobrar card/imagem
+            # órfã sem matéria correspondente -- ninguém publica isso no
+            # site, mas o "Atualizar notícias" faz `git add` tanto de
+            # site/content/posts quanto de site/content/cards no mesmo
+            # commit, então a imagem ficaria commitada pra sempre sem
+            # nenhum post apontando pra ela. Desfaz o que os cards já
+            # tinham gravado antes de propagar o erro.
+            print(f"    erro ao gravar o post (desfazendo cards já gerados): {exc}", file=sys.stderr)
+            cards_page_path = CARDS_CONTENT_DIR / f"{filename_base}.md"
+            cards_page_path.unlink(missing_ok=True)
+            cards_dir = GENERATED_CARDS_DIR / filename_base
+            if cards_dir.exists():
+                shutil.rmtree(cards_dir, ignore_errors=True)
+            raise
         stats["created"] += 1
         stats["published_titles"].append(article.get('titulo', ''))
         print(f"    ✓ publicado: {article.get('titulo', '')[:70]}")
@@ -1923,6 +1978,7 @@ def build_manual_candidate(url: str) -> dict | None:
             date = datetime.fromisoformat(str(raw_date)).replace(tzinfo=timezone.utc)
         except Exception:  # noqa: BLE001
             pass
+    date = clamp_future_date(date)
     return {
         "name": name,
         "extra_instructions": None,
