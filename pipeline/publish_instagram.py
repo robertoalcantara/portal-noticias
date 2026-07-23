@@ -385,7 +385,13 @@ def _iter_recent_articles_with_cards() -> list[tuple[datetime, str, dict, list[P
     MAX_CARD_AGE_HOURS -- a mesma leva de matérias serve de base tanto
     pra Stories (find_pending_cards) quanto pro feed
     (find_pending_feed_articles). Devolve (data, filename_base,
-    frontmatter, lista_de_cards_ordenada), da mais antiga pra mais nova."""
+    frontmatter, lista_de_cards_ordenada), da mais NOVA pra mais antiga --
+    de propósito: quando a cota diária (MAX_POSTS_PER_DAY/
+    MAX_FEED_POSTS_PER_DAY) não dá pra publicar tudo que está pendente
+    numa rodada, main() corta a lista em `[:cota]`, e a prioridade tem
+    que ser sempre a matéria mais recente. Uma mais antiga ficar de fora
+    por falta de espaço na cota não é problema -- ela nunca é reprocessada
+    (o corte de MAX_CARD_AGE_HOURS descarta ela de vez depois)."""
     if not POSTS_DIR.exists() or not CARDS_IMAGES_DIR.exists():
         return []
     cutoff = datetime.now(timezone.utc) - timedelta(hours=MAX_CARD_AGE_HOURS)
@@ -408,7 +414,7 @@ def _iter_recent_articles_with_cards() -> list[tuple[datetime, str, dict, list[P
         if not card_paths:
             continue
         articles.append((date, filename_base, frontmatter, card_paths))
-    articles.sort(key=lambda item: item[0])
+    articles.sort(key=lambda item: item[0], reverse=True)
     return articles
 
 
@@ -417,7 +423,8 @@ def find_pending_cards(
 ) -> list[tuple[datetime, str, Path]]:
     """A partir da leva de matérias recentes com cards, devolve os cards
     individuais ainda não postados como Story: (data, identificador do
-    card, caminho do arquivo), da mais antiga pra mais nova."""
+    card, caminho do arquivo), da mais NOVA pra mais antiga (prioridade
+    pra matéria mais recente quando a cota não alcança pra tudo)."""
     pending: list[tuple[datetime, str, Path]] = []
     for date, filename_base, _frontmatter, card_paths in articles:
         for card_path in card_paths:
