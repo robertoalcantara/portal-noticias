@@ -2,7 +2,7 @@ name: Atualizar notícias
 
 on:
   schedule:
-    - cron: "0 * * * *"   # Equivale a 15h BSB
+    - cron: "0 */4 * * *"   # Equivale a 15h BSB
   workflow_dispatch: {}      # permite rodar manualmente pelo botão "Run workflow"
 
 # necessário para o job conseguir dar push das novas matérias
