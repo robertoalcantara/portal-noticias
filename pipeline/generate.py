@@ -1088,7 +1088,16 @@ def cluster_and_classify(candidates: list[dict], recent_context: list[dict] | No
     blocks.append("MANCHETES NOVAS DESTA RODADA (agrupar/classificar):\n" + "\n".join(lines))
     user_content = "\n\n---\n\n".join(blocks)
 
-    raw = call_llm(CLUSTER_SYSTEM_PROMPT, user_content, 4096, CLUSTER_MODEL)
+    # 4096 fixo já foi curto o bastante pra estourar com uma rodada de 26
+    # candidatos (finish_reason=length, conteúdo vazio -- modelos com
+    # "pensamento" tipo o deepseek-v4-flash gastam parte do orçamento de
+    # max_tokens raciocinando ANTES de escrever o JSON final, e com mais
+    # candidatos pra analisar, gastam mais; o JSON de saída em si é
+    # minúsculo por candidato, tipo {"ids": [0, 3], "categoria": "F1"}, o
+    # gargalo é o raciocínio, não o texto final). Escala com o tamanho da
+    # rodada em vez de fixo, com piso igual aos outros passos (8192).
+    cluster_max_tokens = max(8192, 300 * len(candidates))
+    raw = call_llm(CLUSTER_SYSTEM_PROMPT, user_content, cluster_max_tokens, CLUSTER_MODEL)
     try:
         data = parse_model_json(raw)
     except Exception as exc:  # noqa: BLE001
