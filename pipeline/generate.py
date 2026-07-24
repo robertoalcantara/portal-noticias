@@ -324,6 +324,15 @@ Tarefas:
    leitor que já viu a notícia mais recente. Só descarte por esse motivo
    quando der pra confirmar que é o MESMO evento (mesmo circuito/etapa/
    categoria) numa fase mais avançada — na dúvida, não descarte.
+7. Quando a rodada tem candidatos demais pra analisar de uma vez, ela é
+   dividida em LOTES processados em chamadas separadas (você só vê os
+   candidatos do lote atual). Você também pode receber, à parte, uma
+   lista de MANCHETES JÁ AGRUPADAS EM LOTES ANTERIORES DESTA MESMA
+   RODADA. Se uma manchete do lote atual trata do MESMO fato que uma
+   dessas (ex.: duas fontes diferentes cobrindo a mesma sessão, mesma
+   corrida, mesmo anúncio), marque o grupo dela como "DESCARTAR" — o
+   fato já vai virar matéria a partir do lote anterior, então incluir de
+   novo geraria uma matéria duplicada sobre o mesmo evento.
 
 Responda APENAS com um objeto JSON válido (sem markdown, sem crases):
 {{
@@ -1056,17 +1065,26 @@ def call_llm(system: str, user_content: str, max_tokens: int, anthropic_model: s
     return result
 
 
-def cluster_and_classify(candidates: list[dict], recent_context: list[dict] | None = None) -> list[dict]:
-    """Agrupa candidatos pelo mesmo fato e classifica cada grupo.
+# Nº máximo de candidatos por chamada de agrupamento/classificação. Rodadas
+# maiores que isso são divididas em lotes sequenciais (ver
+# cluster_and_classify) em vez de uma chamada só com max_tokens gigante --
+# um lote grande demais já travou uma rodada inteira (ver histórico: 26
+# candidatos estourou 4096 tokens porque o deepseek-v4-flash "pensa" antes
+# de responder, e mais candidatos = mais raciocínio gasto). Lotes menores
+# e previsíveis são mais confiáveis que só aumentar o limite pra sempre.
+CLUSTER_BATCH_SIZE = 15
 
-    `recent_context` (ver load_recent_published_context) é a lista de
-    matérias já publicadas recentemente pelo site — passada como um bloco
-    à parte no início do prompt, pra o modelo aplicar a regra 6 do
-    CLUSTER_SYSTEM_PROMPT (não publicar nada redundante/já superado por
-    notícia mais recente do mesmo evento)."""
-    if DRY_RUN:
-        return [{"ids": [i], "categoria": ALLOWED_CATEGORIES[0]} for i in range(len(candidates))]
 
+def _cluster_batch(
+    candidates: list[dict],
+    indices: list[int],
+    recent_context: list[dict] | None,
+    same_round_context: list[str] | None,
+) -> list[dict]:
+    """Faz UMA chamada de agrupamento/classificação, só para os candidatos
+    em `indices` (mas os "id N" mostrados no prompt são o índice GLOBAL em
+    `candidates`, não um índice local do lote — assim a resposta do modelo
+    já vem com ids que main() consegue usar direto, sem remapear nada)."""
     blocks = []
     if recent_context:
         context_lines = [
@@ -1077,9 +1095,15 @@ def cluster_and_classify(candidates: list[dict], recent_context: list[dict] | No
             "MATÉRIAS JÁ PUBLICADAS PELO SITE RECENTEMENTE (contexto — ver regra 6):\n"
             + "\n".join(context_lines)
         )
+    if same_round_context:
+        blocks.append(
+            "MANCHETES JÁ AGRUPADAS EM LOTES ANTERIORES DESTA MESMA RODADA "
+            "(contexto — ver regra 7):\n" + "\n".join(same_round_context)
+        )
 
     lines = []
-    for i, c in enumerate(candidates):
+    for i in indices:
+        c = candidates[i]
         summary = (c.get("summary") or "")[:220].replace("\n", " ")
         line = f"id {i} | fonte: {c['name']} | título: {c['title']} | resumo: {summary}"
         if c.get("extra_instructions"):
@@ -1088,15 +1112,11 @@ def cluster_and_classify(candidates: list[dict], recent_context: list[dict] | No
     blocks.append("MANCHETES NOVAS DESTA RODADA (agrupar/classificar):\n" + "\n".join(lines))
     user_content = "\n\n---\n\n".join(blocks)
 
-    # 4096 fixo já foi curto o bastante pra estourar com uma rodada de 26
-    # candidatos (finish_reason=length, conteúdo vazio -- modelos com
-    # "pensamento" tipo o deepseek-v4-flash gastam parte do orçamento de
-    # max_tokens raciocinando ANTES de escrever o JSON final, e com mais
-    # candidatos pra analisar, gastam mais; o JSON de saída em si é
-    # minúsculo por candidato, tipo {"ids": [0, 3], "categoria": "F1"}, o
-    # gargalo é o raciocínio, não o texto final). Escala com o tamanho da
-    # rodada em vez de fixo, com piso igual aos outros passos (8192).
-    cluster_max_tokens = max(8192, 300 * len(candidates))
+    # Piso de 8192 igual aos outros passos do pipeline (escrita/revisão);
+    # com o lote limitado a CLUSTER_BATCH_SIZE candidatos, 300/candidato
+    # nunca chega a ultrapassar o piso na prática, mas fica como reforço
+    # de segurança caso CLUSTER_BATCH_SIZE mude no futuro.
+    cluster_max_tokens = max(8192, 300 * len(indices))
     raw = call_llm(CLUSTER_SYSTEM_PROMPT, user_content, cluster_max_tokens, CLUSTER_MODEL)
     try:
         data = parse_model_json(raw)
@@ -1105,6 +1125,65 @@ def cluster_and_classify(candidates: list[dict], recent_context: list[dict] | No
         print(f"    resposta bruta ({len(raw)} chars): {raw[:500]!r}", file=sys.stderr)
         raise
     return data.get("grupos", [])
+
+
+def cluster_and_classify(
+    candidates: list[dict], recent_context: list[dict] | None = None
+) -> tuple[list[dict], set[int]]:
+    """Agrupa candidatos pelo mesmo fato e classifica cada grupo.
+
+    `recent_context` (ver load_recent_published_context) é a lista de
+    matérias já publicadas recentemente pelo site — passada como um bloco
+    à parte no início do prompt, pra o modelo aplicar a regra 6 do
+    CLUSTER_SYSTEM_PROMPT (não publicar nada redundante/já superado por
+    notícia mais recente do mesmo evento).
+
+    Rodadas com mais de CLUSTER_BATCH_SIZE candidatos são divididas em
+    lotes sequenciais (ver _cluster_batch) -- cada lote só vê os
+    candidatos JÁ agrupados em lotes ANTERIORES desta mesma rodada (regra
+    7), pra não duplicar matéria quando duas fontes do mesmo fato caem em
+    lotes diferentes.
+
+    Devolve (grupos, ids_com_falha): se um LOTE falhar (erro de
+    rede/parsing/API), os candidatos dele entram em `ids_com_falha` em vez
+    de propagar a exceção e abortar a rodada inteira -- só esses
+    candidatos ficam de fora desta rodada (não são marcados como vistos,
+    tentados de novo na próxima). Se a rodada tiver um lote SÓ e ele
+    falhar, propaga a exceção mesmo (mantém o comportamento antigo: rodada
+    pequena demais pra valer a pena publicar parcial, aborta tudo)."""
+    if DRY_RUN:
+        return [{"ids": [i], "categoria": ALLOWED_CATEGORIES[0]} for i in range(len(candidates))], set()
+
+    if len(candidates) <= CLUSTER_BATCH_SIZE:
+        indices = list(range(len(candidates)))
+        groups = _cluster_batch(candidates, indices, recent_context, None)
+        return groups, set()
+
+    all_groups: list[dict] = []
+    failed_ids: set[int] = set()
+    same_round_context: list[str] = []
+    n_batches = (len(candidates) + CLUSTER_BATCH_SIZE - 1) // CLUSTER_BATCH_SIZE
+    for batch_num, start in enumerate(range(0, len(candidates), CLUSTER_BATCH_SIZE), start=1):
+        indices = list(range(start, min(start + CLUSTER_BATCH_SIZE, len(candidates))))
+        print(f"  lote {batch_num}/{n_batches} ({len(indices)} candidato(s))...")
+        try:
+            batch_groups = _cluster_batch(candidates, indices, recent_context, same_round_context or None)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"    aviso: lote {batch_num}/{n_batches} falhou, tentando de novo na "
+                f"próxima rodada ({exc})",
+                file=sys.stderr,
+            )
+            failed_ids.update(indices)
+            continue
+        all_groups.extend(batch_groups)
+        for g in batch_groups:
+            categoria = g.get("categoria", "DESCARTAR")
+            ids = [i for i in g.get("ids", []) if i in indices]
+            if categoria in ALLOWED_CATEGORIES and ids:
+                same_round_context.append(f"- [{categoria}] {candidates[ids[0]]['title']}")
+
+    return all_groups, failed_ids
 
 
 def rewrite_with_claude(
@@ -2495,13 +2574,23 @@ def main() -> int:
 
     print(f"\nAgrupando e classificando manchetes ({active_text_model(CLUSTER_MODEL)})...")
     try:
-        groups = cluster_and_classify(candidates, recent_context)
+        groups, failed_ids = cluster_and_classify(candidates, recent_context)
     except Exception as exc:  # noqa: BLE001
         print(f"erro ao agrupar/classificar: {exc}", file=sys.stderr)
         # NÃO marca como visto: falha no agrupamento é normalmente transitória
         # (rede, resposta inesperada). Assim as mesmas manchetes são
-        # tentadas de novo na próxima rodada em vez de se perderem.
+        # tentadas de novo na próxima rodada em vez de se perderem. Só
+        # acontece quando a rodada cabe num lote só (ver
+        # CLUSTER_BATCH_SIZE/cluster_and_classify) -- com mais de um lote,
+        # a falha de UM lote não aborta os outros (ver failed_ids abaixo).
         return 1
+
+    if failed_ids:
+        print(
+            f"aviso: {len(failed_ids)} candidato(s) ficaram de fora desta rodada "
+            f"(lote de agrupamento falhou) -- tentados de novo na próxima",
+            file=sys.stderr,
+        )
 
     n_groups = len(groups)
     n_sem_ids = 0
@@ -2540,7 +2629,7 @@ def main() -> int:
                 seen.add(link)
 
     for i, c in enumerate(candidates):
-        if i not in grouped_ids:
+        if i not in grouped_ids and i not in failed_ids:
             seen.add(c["link"])
 
     save_seen(seen)
