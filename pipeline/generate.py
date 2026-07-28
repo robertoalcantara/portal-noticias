@@ -1714,11 +1714,23 @@ def write_post(
     source_names: list[str],
     source_urls: list[str],
     date: datetime,
+    filename_base: str,
     image_info: dict | None = None,
     has_cards: bool = False,
     author_name: str = AUTHOR_NAME,
 ) -> Path:
-    filename_base = post_filename_base(article, date)
+    # IMPORTANTE: `filename_base` tem que vir de FORA (calculado uma única
+    # vez em process_group, ANTES dos cards) -- nunca recalcular
+    # post_filename_base() aqui de novo. Recalcular causava um "falso
+    # positivo" de colisão: a checagem de colisão olha se já existe
+    # CARDS_CONTENT_DIR/<nome>.md, mas a página de cards do PRÓPRIO
+    # artigo já tinha sido gravada nesse nome momentos antes (ver
+    # generate_and_render_cards, chamado antes de write_post) -- ou seja,
+    # o post colidia consigo mesmo e ganhava um sufixo "-2" que os cards
+    # (gravados com o nome SEM sufixo) não tinham, deixando post e cards
+    # com nomes diferentes. Resultado: publish_instagram.py nunca achava
+    # o card de nenhum post novo (ele casa post.stem com o diretório de
+    # cards do MESMO nome), e a publicação no Instagram parava de vez.
     path = POSTS_DIR / f"{filename_base}.md"
     image_info = image_info or {}
 
@@ -1989,6 +2001,7 @@ def process_group(
                 source_names,
                 links,
                 publish_date,
+                filename_base,
                 image_info,
                 has_cards=bool(card_urls),
                 author_name=writer.author_name,
