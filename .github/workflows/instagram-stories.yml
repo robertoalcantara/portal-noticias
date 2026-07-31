@@ -15,9 +15,17 @@ name: Publicar Stories e feed no Instagram
 # Instagram limita a API a 100 publicações/24h, somando todos os tipos
 # de conteúdo). Ver pipeline/publish_instagram.py e a seção "Publicação
 # automática no Instagram" no README pra pré-requisitos e configuração.
+#
+# Roda de hora em hora, das 6h às 23h no horário de Brasília (GMT-3) --
+# 9h às 2h (do dia seguinte) em UTC. Cada rodada publica só o MAIS NOVO
+# pendente de cada tipo (1 Story + 1 post de feed), nunca o backlog
+# inteiro de uma vez -- ver MAX_STORIES_PER_RUN/MAX_FEED_POSTS_PER_RUN
+# em pipeline/publish_instagram.py. Publicar tudo de uma vez (o que
+# acontecia antes) deixava o perfil com uma rajada de posts todos juntos;
+# de hora em hora fica mais espaçado e natural.
 on:
   schedule:
-    - cron: "30 9,14,18,23 * * *"   # uma vez por dia ao meio-dia UTC
+    - cron: "15 9-23,0-2 * * *"   # de hora em hora, 6h-23h em GMT-3 (9h-2h UTC)
   workflow_dispatch: {}
 
 # necessário para o job conseguir dar push do controle de já-publicados

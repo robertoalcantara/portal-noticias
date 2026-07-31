@@ -4,14 +4,20 @@ Publica os cards de Stories (gerados por pipeline/cards.py) como Stories de
 verdade no Instagram (@gridgeral), E também um post de carrossel no FEED
 (mesmas imagens dos cards, com legenda) -- via Instagram Graph API (Meta).
 
-Roda como workflow SEPARADO (.github/workflows/instagram-stories.yml),
-agendado pra alguns minutos depois do funil principal ("Atualizar
-notícias") -- a API do Instagram busca a imagem por URL pública, então ela
-precisa estar no ar (deploy do Cloudflare Pages já feito) antes de tentar
-publicar. Não depende de qual workflow gerou a matéria (funil automático,
-modo manual etc.) -- só varre o que já está publicado em
-site/content/posts/ + site/static/images/cards/ e publica o que ainda não
-foi publicado.
+Roda como workflow SEPARADO (.github/workflows/instagram-stories.yml), de
+hora em hora entre 6h e 23h (horário de Brasília) -- a API do Instagram
+busca a imagem por URL pública, então ela precisa estar no ar (deploy do
+Cloudflare Pages já feito) antes de tentar publicar. Não depende de qual
+workflow gerou a matéria (funil automático, modo manual etc.) -- só varre
+o que já está publicado em site/content/posts/ + site/static/images/cards/
+e publica o que ainda não foi publicado.
+
+Cada rodada publica só o MAIS NOVO pendente de cada tipo (1 Story + 1 post
+de feed, ver MAX_STORIES_PER_RUN/MAX_FEED_POSTS_PER_RUN) -- nunca o
+backlog inteiro de uma vez. Publicar tudo junto numa rodada só deixava o
+perfil com uma rajada de posts de uma vez; de hora em hora, um de cada
+vez, fica mais espaçado e parece conteúdo publicado ao longo do dia de
+verdade, não um despejo.
 
 Duas publicações são feitas por matéria, de forma independente (uma pode
 falhar/ficar pra trás sem afetar a outra). Só matérias com menos de
@@ -136,6 +142,15 @@ ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "").strip()
 IG_USER_ID = os.environ.get("INSTAGRAM_BUSINESS_ACCOUNT_ID", "").strip()
 MAX_POSTS_PER_DAY = int(os.environ.get("MAX_INSTAGRAM_POSTS_PER_DAY", "20"))
 MAX_FEED_POSTS_PER_DAY = int(os.environ.get("MAX_INSTAGRAM_FEED_POSTS_PER_DAY", "10"))
+
+# Cota acima é o teto de SEGURANÇA do dia inteiro -- mas publicar tudo que
+# está pendente de uma vez só (ex.: 20 Stories em sequência numa rodada só)
+# deixa o perfil com uma rajada de posts todos juntos, o que não fica legal.
+# O workflow já roda de hora em hora (ver instagram-stories.yml); cada
+# rodada publica só o(s) item(ns) MAIS NOVO(S) pendente(s) de cada tipo, e
+# o resto do backlog (se houver) fica pra próxima rodada, uma hora depois.
+MAX_STORIES_PER_RUN = int(os.environ.get("MAX_INSTAGRAM_STORIES_PER_RUN", "1"))
+MAX_FEED_POSTS_PER_RUN = int(os.environ.get("MAX_INSTAGRAM_FEED_POSTS_PER_RUN", "1"))
 
 # Stories e feed são conteúdo do "agora" -- não faz sentido postar (ou
 # gerar post de feed) de uma matéria de mais de 1 dia só porque a cota
@@ -465,9 +480,15 @@ def main() -> int:
     pending_cards = find_pending_cards(articles, already_posted_stories)
     print(f"Cards pendentes (< {MAX_CARD_AGE_HOURS}h, ainda não postados como Story): {len(pending_cards)}")
 
-    to_post_stories = pending_cards[:stories_quota] if stories_quota > 0 else []
+    stories_this_run = min(stories_quota, MAX_STORIES_PER_RUN)
+    to_post_stories = pending_cards[:stories_this_run] if stories_this_run > 0 else []
     if stories_quota <= 0:
         print("Cota diária de Stories (de segurança) atingida -- nada a fazer nesta rodada.")
+    elif len(pending_cards) > stories_this_run:
+        print(
+            f"Publicando só {stories_this_run} agora (o mais novo) -- os outros "
+            f"{len(pending_cards) - stories_this_run} pendente(s) ficam pra próxima rodada."
+        )
 
     posted_stories_now = 0
     for i, (_date, identifier, card_path) in enumerate(to_post_stories):
@@ -503,9 +524,15 @@ def main() -> int:
     pending_feed = find_pending_feed_articles(articles, already_posted_feed)
     print(f"Matérias pendentes (< {MAX_CARD_AGE_HOURS}h, ainda sem post de feed): {len(pending_feed)}")
 
-    to_post_feed = pending_feed[:feed_quota] if feed_quota > 0 else []
+    feed_this_run = min(feed_quota, MAX_FEED_POSTS_PER_RUN)
+    to_post_feed = pending_feed[:feed_this_run] if feed_this_run > 0 else []
     if feed_quota <= 0:
         print("Cota diária de posts de feed (de segurança) atingida -- nada a fazer nesta rodada.")
+    elif len(pending_feed) > feed_this_run:
+        print(
+            f"Publicando só {feed_this_run} agora (o mais novo) -- os outros "
+            f"{len(pending_feed) - feed_this_run} pendente(s) ficam pra próxima rodada."
+        )
 
     posted_feed_now = 0
     for i, (_date, filename_base, frontmatter, card_paths) in enumerate(to_post_feed):
