@@ -1259,7 +1259,18 @@ def generate_card_texts(article: dict, writer: WriterProfile) -> list[str]:
         },
         ensure_ascii=False,
     )
-    raw = call_llm(build_cards_system_prompt(writer), user_content, 1024, CARDS_MODEL)
+    # 1024 fixo era curto demais e falhava sozinho pra matérias mais longas
+    # ou mais elaboradas -- especialmente comuns no modo manual (link
+    # individual, run_manual_mode()), onde o corpo_markdown vem de UMA
+    # fonte completa (não um resumo curto de RSS) e tende a ser mais rico,
+    # e em categorias fora do dia a dia mais simples de F1, onde o modelo
+    # "pensa" mais pra decidir quantos cards/que fatos destacar. O mesmo
+    # problema já apareceu (e foi corrigido) no agrupamento/classificação:
+    # modelos com raciocínio interno (deepseek-v4-flash) gastam parte do
+    # max_tokens pensando ANTES de escrever o JSON final, e o resultado
+    # final aqui é só de 1 a 5 frases curtas -- o gargalo é raciocínio, não
+    # o texto de saída. Piso igual aos outros passos do pipeline (8192).
+    raw = call_llm(build_cards_system_prompt(writer), user_content, 8192, CARDS_MODEL)
     data = parse_model_json(raw)
     cards = [str(c).strip() for c in data.get("cards", []) if str(c).strip()]
     if not cards:
