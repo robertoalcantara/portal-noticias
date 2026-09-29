@@ -1,0 +1,24 @@
++++
+title = "Gustafsson sobra em Le Mans, dá à CRG o 28º título mundial — e a Tony Kart responde com um festival de ultrapassagens"
+date = 2026-09-27T00:00:00Z
+author = "Bruno Bandeira"
+summary = "Pole, liderança de ponta a ponta e festa italiana: enquanto a CRG comemorava seu 28º Mundial de KZ, a Tony Kart transformava o fim de semana em aula de recuperação em Le Mans"
+categories = ["Kart"]
+tags = ["FIA Karting KZ", "CRG", "Tony Kart", "Le Mans"]
+sources = ["TKART", "TKART"]
+source_urls = ["https://tkart.it/en/news/features/sparco-and-crg-together-in-celebration-of-the-28th-world-championship-title-at-le-mans", "https://tkart.it/en/news/features/tony-kart-an-increasingly-successful-weekend-at-the-world-kz-champ"]
+image = ""
+image_credit_name = ""
+image_credit_url = ""
+image_provider = ""
+has_cards = true
++++
+Teve corrida decidida cedo em Le Mans — e não, não foi falta de emoção, foi eficiência. Viktor Gustafsson foi pole position, liderou do primeiro ao último giro da Final e entregou à CRG o título do FIA Karting World Championship KZ. Com o resultado no circuito francês, a marca italiana chegou ao seu 28º título mundial. Pouco, não? Para quem acompanha regularmente o Mundial de KZ, foi mais um lembrete de que ultrapassar certos pilotos é como tentar discutir com um fiscal de bloco: você até tenta, mas sai perdendo.
+
+A conquista rendeu o 28º título à CRG e também alimentou o calendário de aniversários da dupla italiana: a parceria com a Sparco vem de longa data, e enquanto a CRG completa 40 anos em 2026, a Sparco chega às cinco décadas em 2027. Entre um bolo e outro, as duas empresas seguem dividindo experiência em competição, pesquisa, inovação e performance — uma relação que também passa pela carreira de nomes como Max Verstappen, que deu passos importantes no kart pela equipe CRG. A fornecedora de equipamentos trabalha com o time no desenvolvimento de material dedicado aos pilotos, incluindo o macacão Prime K Advanced, aprovado pela norma FIA 8877-2022, com proteção antiaabrasão nas costas, painel elástico, tecido leve e respirável, inserções perfuradas e superfície totalmente personalizável.
+
+Enquanto a CRG posava para as fotos, a Tony Kart fazia as contas de outra natureza: quantas posições dá para recuperar em um fim de semana. Com o Racer 401 T, a equipe disputou o Mundial de KZ, a World Cup de KZ2 e a International Masters' Super Cup KZ2 Masters. Na KZ, Cristian Bertuca, em sua terceira aparição com as cores oficiais do time, saiu de uma classificação complicada, recuperou 14 posições na bateria final e subiu 12 lugares no total em relação ao qualifying. Largou bem, era quinto no fim da primeira volta e brigou pelo pódio até o fim — ficando a um segundo dele. Lorenzo Camplese fez ainda melhor no quesito recuperação: 19 posições na super heat e mais 13 na Final, entrando no top 10 e assinando a maior recuperação da prova. Tom Leuillet também mostrou ritmo, com 11 posições ganhas, enquanto Matteo Viganò viu a corrida terminar antes da hora, depois de sessões anteriores sólidas.
+
+Na KZ2, Genis Civico Espona foi o nome mais consistente do time no fim de semana francês, com dois terceiros lugares nas baterias classificatórias, um super heat logo fora do top 5 e uma Final entre os dez primeiros. Thomas Pradier, com pouca experiência em karts da categoria com marcha, cravou o segundo melhor tempo do Grupo 4 nos treinos, somou um top 5 como melhor resultado nas baterias, foi quarto no warm-up de domingo e recuperou 11 posições na Final. Maximilian Schleimer passou pelas baterias sem erros e com um top 5 no bolso, mas uma parada na super heat o deixou fora da Final. Jindřich Pešl, em estreia na categoria, foi melhorando sessão a sessão, e Nicola Rossini completou a formação. Na KZ2 Masters, Andre Nicastro ficou perto das primeiras posições, com dois top 5 nas baterias e um quase top 10 na Final, enquanto Roberto Profico evoluiu ao longo do fim de semana e cruzou não muito atrás do companheiro.
+
+Do lado da CRG, o discurso oficial também teve seu momento de celebração. ‘Estamos muito contentes de celebrar juntos o 28º título mundial da CRG, uma conquista que premia consistência, competência e competitividade’, afirmou Valeria Vivenza, Sales Manager da Sparco, lembrando que o equipamento de kart precisa unir características técnicas e performance a conforto e estilo, ajudando ainda a expressar a identidade do piloto e da equipe. Jeremy Iglesias, Team Principal da CRG, destacou a parceria com uma marca líder do automobilismo e o trabalho centrado nas necessidades do piloto — e fez questão de citar os macacões criados para os 40 anos da CRG, bastante fotografados e elogiados em Le Mans. Já a Tony Kart já tem destino marcado: o Circuito Leopard, em Viterbo, na Itália, para a rodada final do Campeonato Italiano de Kart da ACI, entre 25 e 27 de setembro. Porque descanso, no kart, é aquela coisa que só existe no calendário dos outros.
