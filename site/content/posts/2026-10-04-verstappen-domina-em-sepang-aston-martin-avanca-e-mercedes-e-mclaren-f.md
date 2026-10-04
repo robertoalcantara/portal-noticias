@@ -1,0 +1,24 @@
++++
+title = "Verstappen domina em Sepang; Aston Martin avança e Mercedes e McLaren ficam sem respostas"
+date = 2026-10-04T04:15:06Z
+author = "Armando Traço"
+summary = "Aston Martin coloca os dois carros no Q2 pela primeira vez no ano, enquanto McLaren admite estar longe do ritmo e Mercedes sai da Malásia sem entender a queda de desempenho"
+categories = ["F1"]
+tags = ["Sepang", "classificação", "Aston Martin", "Mercedes"]
+sources = ["Formula1.com", "Formula1.com", "ge Globo (F1)"]
+source_urls = ["https://www.formula1.com/en/latest/article/how-a-miracle-helped-alonso-and-aston-martin-to-earn-p12-on-the-grid-for-the-bahrain-grand-prix-in-malaysia.gtjGUTcnU67mvSadBmN9J", "https://www.formula1.com/en/latest/article/norris-admits-mclaren-a-long-way-off-the-pace-after-tough-qualifying-in-malaysia.s821hQJMmeebtQF8Bn5vC", "https://ge.globo.com/motor/formula-1/noticia/2026/10/03/mercedes-admite-confusao-com-classificacao-ruim-apos-atualizar-carro-pior-do-ano.ghtml"]
+image = "/images/ia/f867aa519f4945df.png"
+image_credit_name = ""
+image_credit_url = ""
+image_provider = "IA (variação da imagem da fonte)"
+has_cards = true
++++
+A classificação para o GP do Bahrein na Malásia, no Circuito Internacional de Sepang, terminou com Max Verstappen na pole position, mas a sessão deixou mais perguntas do que respostas para boa parte do grid. Disputada numa volta longa, de cerca de 95 segundos, sobre asfalto antigo e abrasivo, sob calor forte e com pouca aderência, a classificatória embaralhou a ordem de força e ainda ganhou uma variável extra: a punição de cinco posições por troca de motor aplicada a Isack Hadjar, da Red Bull, que reordena as primeiras filas para a corrida de domingo.
+
+O melhor saldo do dia foi o da Aston Martin, que colocou os dois carros no Q2 pela primeira vez na temporada. Fernando Alonso passou em P14 no Q1 e Lance Stroll, no melhor Q1 dele no ano, em P15. No Q2, com Arvid Lindblad e Franco Colapinto abrindo mão de voltas rápidas — ambos já carregavam punições para largar no fundo do grid —, a equipe ganhou espaço e foi além: Alonso cravou P12, à frente da Williams de Carlos Sainz e a 1,524s do melhor tempo da fase, do Red Bull de Verstappen, enquanto Stroll ficou com o P14. ‘É um milagre que estejamos brigando com carros muito mais rápidos do que nós’, resumiu o espanhol.
+
+O desempenho, segundo os próprios pilotos, tem explicação técnica direta: o carro é o mesmo desde Budapeste, e o que muda é o traçado. Alonso lembrou que o AMR26 não sofreu alterações nas últimas etapas e que o rendimento oscila conforme a metragem de reta de cada pista. Em Sepang, com menos retas e mais curvas, o pacote aparece; nas pistas velozes, desaparece. ‘Se você larga na frente, abre uma diferença, administra os pneus e faz uma corrida limpa’, disse o espanhol, alertando que perder posições nas primeiras retas compromete tudo: sem velocidade de ponta, não há como reagir, e forçar o ritmo ainda pode castigar os pneus. Stroll foi na mesma linha, afirmando que faltam mais de um segundo nas retilíneas e que Malásia e Singapura são justamente as janelas em que a equipe pode escapar do Q1.
+
+Na McLaren, o tom foi de frustração. Lando Norris ficou em sexto, a 0,6s de Verstappen, e vai largar em quinto por causa da punição de Hadjar, que havia se classificado em terceiro. ‘Estamos muito longe do ritmo, mas é o que é. O carro está sofrendo’, admitiu o britânico, que viu a equipe ficar atrás das duas Ferraris e de Kimi Antonelli. Ele levantou a hipótese de o asfalto de Sepang pesar mais do que o esperado sobre o comportamento do carro e alertou para uma corrida de degradação alta, como o time ainda não enfrentou neste ano. Oscar Piastri, sétimo na classificação, reconheceu que deixou desempenho na mesa na volta final e que a McLaren simplesmente não é rápida o suficiente no momento. Nenhum dos dois havia corrido antes no circuito malaio.
+
+Quem também saiu de Sepang sem diagnóstico fechado foi a Mercedes. Líder do campeonato de construtores, a equipe alemã levou sete atualizações, com foco no assoalho e na parte traseira, mas viu Kimi Antonelli terminar em quarto — cerca de meio segundo atrás de Verstappen — e George Russell em oitavo, quase oito décimos atrás. Ambos ganham uma posição no grid com a punição de Hadjar. Russell classificou a sessão como a pior do ano e citou a agressividade do asfalto com os pneus como suspeito principal. Toto Wolff não escondeu a confusão: disse que os números do túnel de vento apontavam ganho, mas o resultado não veio, lembrou que Antonelli havia sido o mais rápido no terceiro treino livre e admitiu que é preciso entender por que as atualizações não funcionaram ali. Curiosamente, na última prova antes das mudanças, Russell havia feito a pole com oito décimos de vantagem sobre Charles Leclerc. A corrida está marcada para a madrugada de domingo, com largada às 4h de Brasília.
