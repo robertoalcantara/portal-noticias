@@ -1,0 +1,26 @@
++++
+title = "Câmara assina com a Haas e recoloca o Brasil com dois pilotos na F1 em 2027"
+date = 2026-10-15T16:18:06Z
+author = "Armando Traço"
+summary = "Pernambucano de 21 anos, líder da F2 e formado na Academia Ferrari, supera Fornaroli e Doohan em teste decisivo em Portimão e fecha contrato de vários anos com a equipe americana"
+categories = ["F1"]
+tags = ["Rafael Câmara", "Haas", "F1 2027", "Ferrari Driver Academy"]
+sources = ["Formula1.com", "Formula1.com", "Formula1.com", "ge Globo (F1)"]
+source_urls = ["https://www.formula1.com/en/latest/article/rafael-camara-the-next-ferrari-protege-haas-couldnt-turn-down.24Vz3MR6I5GVOywy1z8C39", "https://www.formula1.com/en/latest/article/analysis-why-haas-decided-to-risk-promoting-rookie-camara-for-their-2027-line-up.4Q2AGJtixidwJ2EXtdsydz", "https://www.formula1.com/en/latest/article/ferrari-junior-rafael-camara-promoted-to-f1-with-haas-for-2027.1RSxvnFaLu8Hd3JD2ppFsz", "https://ge.globo.com/motor/formula-1/noticia/2026/10/15/brasil-vai-voltar-a-ter-dois-pilotos-no-grid-da-f1-depois-de-11-anos.ghtml"]
+image = "/images/ia/295261576d3bf64e.png"
+image_credit_name = ""
+image_credit_url = ""
+image_provider = "IA (variação da imagem da fonte)"
+has_cards = true
++++
+A Haas confirmou a contratação de Rafael Câmara para a temporada 2027 da Fórmula 1, em um acordo de vários anos. O anúncio encerra uma disputa interna que a equipe americana abriu após a decisão de não renovar com Esteban Ocon para um terceiro ano. Câmara, de 21 anos, é líder do campeonato da F2 pela Invicta e integra a Academia de Pilotos da Ferrari desde 2022, mesma trajetória do atual titular Ollie Bearman, que deve permanecer no time.
+
+O fator decisivo veio da pista. A Haas usou seu programa de Teste de Carros Anteriores (TPC) para avaliar candidatos como o campeão da F2 de 2025, Leonardo Fornaroli, e os reservas Ryo Hirakawa e Jack Doohan, além de Câmara. No teste realizado em Portimão, ao volante do carro de 2025 da equipe, o brasileiro se destacou rapidamente pela velocidade e pela capacidade de se adaptar e chegar ao ritmo com pouco tempo de aprendizado — exatamente o perfil que o chefe Ayao Komatsu buscava. ‘Ele mostrou que conseguia lidar muito bem com a situação sem um tempo enorme para aprender o carro’, disse Komatsu, ressaltando que o piloto apresentou ‘mais do que apenas velocidade bruta’.
+
+O que a Haas procurava tinha nome: velocidade e mentalidade de equipe. Komatsu havia declarado, em Baku, que o time precisava de um piloto rápido, mas sobretudo capaz de integrar-se e motivar o grupo, algo ainda mais relevante para uma equipe pequena. Câmara reúne credenciais nesse sentido. Ele detém o recorde de poles em uma única temporada da F3 (cinco) e está atrás apenas de Charles Leclerc em poles numa mesma temporada de F2 — cinco contra oito do monegasco. Depois de conquistar o título da Fórmula Regional em 2024, venceu a FIA F3 com a TRIDENT, igualando Arvid Lindblad na maior porcentagem de vitórias da história da categoria, e agora soma três vitórias em corridas principais e mais quatro pódios como novato na F2, com sete pontos de vantagem sobre o protegido da Red Bull, Nikola Tsolov, restando duas etapas. Em nenhuma categoria que disputou terminou abaixo do quinto lugar, e pode se tornar o primeiro piloto desde Oscar Piastri a emendar três títulos consecutivos na base antes de subir à F1.
+
+A leitura tática também pesou. Ainda em busca da primeira vitória na F2, Câmara liderava nas ruas de Mônaco quando cometeu um erro que adiou o resultado. Uma semana depois, em Barcelona, executou com precisão um overcut que exigia conservação de pneus e consistência de ritmo para deixar os rivais para trás. O chefe da Invicta, James Robinson, chamou a performance de ‘perfeição’ e exaltou a relação do piloto com seu engenheiro. A maturidade aparece ainda fora da pista: Jerome D'Ambrosio, vice-chefe da Ferrari e responsável pela academia, lembrou discussões de inverno em que o brasileiro impôs com clareza o que precisava para render — ‘um sinal de força’, segundo ele.
+
+Com a chegada de Câmara, o Brasil volta a ter dois representantes no grid, ao lado de Gabriel Bortoleto. A última temporada com mais de um brasileiro havia sido 2016, com Felipe Massa na Williams e Felipe Nasr na Sauber. Depois disso, Massa foi o único nome em 2017 antes de se aposentar, e o país só reapareceu, de forma pontual, com as duas corridas de Pietro Fittipaldi como substituto em 2020, até a estreia de Bortoleto em 2025. Tradição construída desde os lampejos de Chico Landi e Gino Bianco nos anos 1950, passando pelos títulos de Emerson Fittipaldi, Nelson Piquet e Ayrton Senna, chega agora a novos rostos: 2027 será a 78ª temporada da F1 e a 46ª com pelo menos dois pilotos brasileiros, o equivalente a 58,9% da história da categoria.
+
+Para Câmara, começa agora o trabalho de preparação. ‘Meu foco é me preparar da melhor forma possível para este novo desafio. Haverá muito a aprender’, afirmou. O dono da equipe, Gene Haas, lembrou que a trajetória de Bearman pela academia da Ferrari mostrou que esses jovens chegam prontos para causar impacto imediato. Resta saber se a aposta em um novato — que ainda não testou a máquina atual em um fim de semana de GP — se converterá na mesma curva de crescimento. A Haas aposta que sim.
