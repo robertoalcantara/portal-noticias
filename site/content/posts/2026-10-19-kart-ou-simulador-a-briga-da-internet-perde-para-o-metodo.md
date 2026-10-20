@@ -1,0 +1,22 @@
++++
+title = "Kart ou simulador? A briga da internet perde para o método"
+date = 2026-10-19T00:00:00Z
+author = "Bruno Bandeira"
+summary = "Especialista freia o duelo entre kart e sim racing: nenhum caminho manda na F1, mas iRacing com telemetria e relatório escrito já não é videogame."
+categories = ["Kart"]
+tags = ["kart", "sim racing", "Fórmula 4", "formação de pilotos"]
+sources = ["Vroomkart"]
+source_urls = ["https://www.vroomkart.com/news/46847/more-than-karting-the-fundamental-importance-of-the-sim"]
+image = ""
+image_credit_name = ""
+image_credit_url = ""
+image_provider = ""
+has_cards = true
++++
+Max Verstappen colocou o dedo no assunto em uma entrevista e, como era de se esperar, as redes sociais transformaram o debate em clássico de arquibancada: kart ou simulador? Qual é o caminho para a Fórmula 1? Para Francesco Svelto, especialista em treinamento de simuladores e diretor de programa da RFE Team, a resposta é menos binária do que a torcida gostaria. Ele afirma que nenhum dos dois caminhos tem prioridade sobre o outro — e que a forma como pilotos profissionais gastam o tempo livre é outra conversa. Svelto lidera, ao lado dos coaches Mattia Nachira e Sergio Suardi, um programa de treino em simulador desenvolvido pela RFE Team em colaboração com a DAG Management para pilotos jovens.
+
+A primeira distinção que ele faz é entre videogame e simulador profissional. E ela depende menos do software e mais do uso. Plataformas como iRacing, usadas no programa, têm circuitos escaneados a laser, modelos de pneus, suspensão e aerodinâmica muitas vezes desenvolvidos com dados de fabricantes e carros que competem de verdade, da Fórmula 4 ao GT. Videogame é feito para entreter e perdoa erros; simulador reproduz o comportamento do carro mesmo quando ele é difícil de guiar. O hardware pesa tanto quanto o software: um pedal com célula de carga mede a força aplicada no freio, como num carro real, enquanto um pedal que mede apenas curso treina outro movimento. Para quem aprende a modular pressão de frenagem, isso não é detalhe. E falta a metodologia: a mesma plataforma vira ferramenta de trabalho quando cada sessão tem objetivo específico, telemetria para medir desempenho e comparação com sessões anteriores.
+
+O programa começa no mundo real, não no cockpit virtual. A base é a análise dos dados do piloto na pista: telemetria, imagens onboard, setup, feedback de corridas e testes e as impressões do próprio piloto. Só depois engenheiros e coaches definem quais circuitos usar, quais aspectos técnicos atacar e em que ordem. A DAG Management cuida da carreira esportiva e profissional dos pilotos, identifica estratégias, ferramentas e parcerias e chama parceiros técnicos como a RFE Team quando o treino em simulador faz sentido. A RFE entra com expertise, organização e equipe técnica. No dia a dia, Nachira, coach de pilotagem e gerente da equipe de iRacing da RFE, trabalha a técnica; Suardi, ex-engenheiro de corrida no automobilismo real, cuida de telemetria e setup. Cada sessão é dedicada a uma coisa de cada vez — até porque o piloto precisa saber exatamente o que está treinando.
+
+A escolha dos traçados também tem lógica. Monza isola a frenagem, com zonas fortes nas retas e sem exigir volante ao mesmo tempo; Barcelona oferece frenagens bem diferentes; Misano tem pontos compactos e repetíveis. O programa monta comparações de antes e depois e envia relatório escrito a piloto, família e gestão após cada sessão. O ciclo fecha voltando à realidade: as sessões são agendadas em torno de corridas e testes, os circuitos são preparados com antecedência e cada teste real alimenta ajustes no simulador. Para jovens a caminho da Fórmula 4, isso importa porque dias em carro real são limitados, caros e presos à agenda da equipe, às vezes com semanas entre uma sessão e outra. No simulador, esse intervalo pode virar treino produtivo — desde que haja direção. Voltas livres sem objetivo tendem a reforçar vícios. Com dados reais e debrief após cada teste, o piloto chega ao próximo track day já tendo trabalhado curvas, pontos de frenagem e condições que vai encontrar. Aí sobra o tempo de pista, o mais valioso, para aquilo que só a realidade ensina. No kart, a progressão de Mini a Junior, Senior e além acompanha o desenvolvimento físico; no sim, muita gente começa cedo e a pergunta é quando a brincadeira vira treino sério. O que faz diferença, em qualquer um dos caminhos, é o método — não a escolha de um lado na internet.
