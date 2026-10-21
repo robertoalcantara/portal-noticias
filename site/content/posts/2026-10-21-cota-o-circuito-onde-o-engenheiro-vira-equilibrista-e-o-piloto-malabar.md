@@ -1,0 +1,24 @@
++++
+title = "COTA: o circuito onde o engenheiro vira equilibrista e o piloto, malabarista de pneus"
+date = 2026-10-21T16:37:30Z
+author = "Bruno Bandeira"
+summary = "Setor 1 pede asa, setor 3 pede paciência, o asfalto é um tabuleiro e o pneu precisa estar quente na hora exata — bem-vindo ao GP dos EUA, onde ninguém sabe ao certo qual é a resposta certa"
+categories = ["F1"]
+tags = ["COTA", "GP dos EUA", "Cadillac", "Estratégia"]
+sources = ["Formula1.com"]
+source_urls = ["https://www.formula1.com/en/latest/article/the-risk-perspective-how-f1-drivers-engineers-and-strategists-tackle-the-circuit-of-the-americas.741JHFwQ3tVxbddx0ndKXz"]
+image = "/images/ia/ad53a8df1c7147f8-original.jpg"
+image_credit_name = "Formula1.com"
+image_credit_url = "https://www.formula1.com/en/latest/article/the-risk-perspective-how-f1-drivers-engineers-and-strategists-tackle-the-circuit-of-the-americas.741JHFwQ3tVxbddx0ndKXz"
+image_provider = "Foto original da matéria-fonte"
+has_cards = true
++++
+O GP dos Estados Unidos no Circuit of The Americas é daqueles eventos que a F1 trata como joia da coroa: arquibancada cheia, celebridades no paddock e audiência de televisão de fazer inveja. O traçado, porém, não tem a menor intenção de facilitar a vida de ninguém. É rápido, mas também é um tabuleiro de paralelepípedo disfarçado de autódromo — batido, ondulado e cheio de exigências contraditórias. O primeiro setor quer um carro que voe em curvas de alta; o resto da volta quer um carro que se ajeite nas de baixa. Otimizar os dois? Só em outro universo.
+
+Quem explica o dilema é Xavi Marcos Padros, chefe de engenharia de corrida da Cadillac F1, com passagem por HRT, Williams e Ferrari e uma temporada como chefe de engenharia na NASCAR, na Richard Childress Racing, antes de entrar na Cadillac em 2025 para cuidar dos programas de WEC e IMSA. Segundo ele, o cardápio de ajustes inclui amortecedores, rigidez geral para encarar os buracos e altura de carro — esta última com um detalhe nada poético: garantir que a prancha, a peça de compósito no assoalho medida depois da prova, continue dentro da legalidade mesmo depois de 300 quilômetros de raspagem. O ponto de partida vem do simulador e dos dados de simulação para o FP1, com ajustes para o FP2, sessões extras de simulador na noite de sexta e, claro, o feedback dos pilotos — porque alguns preferem um carro mais duro e outros precisam de algo mais macio. Gosto não se discute, calibra-se.
+
+A volta de classificação é o capítulo seguinte do mesmo drama. Um out-lap que deixe os pneus prontos para o primeiro setor tende a cozinhá-los antes do fim da volta, justamente no trecho que castiga o lado esquerdo do carro nas longas curvas de direita. Existe o compromisso de começar com os pneus um pouco frios e chegar inteiro ao final da volta, mas saber qual das abordagens rende mais é exercício de adivinhação refinada. A equipe testa variações de out-lap na sexta e planeja um teste cruzado entre os carros nas simulações de classificação do FP3 — sabendo que o alvo se move, porque a borracha vai se depositando, a aderência aumenta e a pista evolui entre uma sessão e outra.
+
+Na estratégia, Austin vive no fio entre uma e duas paradas. De 2021 a 2023 foram duas voltas no pit — medium>hard>hard em 2021, medium>hard>medium em 2022 e medium>medium>hard em 2023. Em 2024, a corrida caiu para uma parada medium>hard e, no ano passado, a Pirelli tentou a cartada do coelho e da tartaruga: trocou o trio C2-C3-C4 por C1-C3-C4, sonhando com os cautelosos de uma parada apanhando dos velozes de duas nos últimos giros. O roteiro não saiu como planejado — deu uma parada só, com os compostos mais macios, e Max Verstappen venceu com medium>soft. Neste ano o trio convencional C2-C3-C4 está de volta. O resultado costuma depender do termômetro: Austin, no fim de outubro, pode fazer calor ou pode fazer outra coisa, e a previsão indica calor, o que aumenta a degradação. Ainda assim, corridas de duas paradas andam raras nesta temporada de 2026.
+
+Do lado de dentro do cockpit, a escala é outra. Colton Herta, piloto de testes e reserva da Cadillac, assume o carro de Sergio Perez no FP1 para cumprir uma das sessões obrigatórias de novato — a quarta dele no ano, depois de Barcelona, Budapeste e Monza. Aos 26 anos, ele já rodou sete categorias na IndyCar, somou nove vitórias e foi vice-campeão em 2024; a primeira dessas vitórias veio justamente em COTA, em 2019, quando se tornou o mais jovem vencedor da história da categoria. Sua receita para o fim de semana passa pelo mesmo nó: achar o equilíbrio entre altura e rigidez num asfalto irregular, sem sacrificar o primeiro setor nem os trechos lentos e longos. E tem ainda o vento, que muda o comportamento do carro conforme sopra em cada parte do traçado — o tipo de variável que não aparece no simulador, mas faz questão de aparecer na pista.
