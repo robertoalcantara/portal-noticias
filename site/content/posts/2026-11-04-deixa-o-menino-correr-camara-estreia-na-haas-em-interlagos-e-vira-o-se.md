@@ -1,0 +1,24 @@
++++
+title = "Deixa o menino correr: Câmara estreia na Haas em Interlagos e vira o sétimo brasileiro a debutar em casa"
+date = 2026-11-04T00:00:00Z
+author = "Bruno Bandeira"
+summary = "Aos 21 anos, o pernambucano assume o carro de Esteban Ocon já neste fim de semana, em São Paulo, e ainda em Las Vegas — antes mesmo do contrato de 2027 começar a valer"
+categories = ["F1"]
+tags = ["Rafael Câmara", "Haas", "F1 2026", "Interlagos"]
+sources = ["ge Globo (F1)", "ge Globo (F1)"]
+source_urls = ["https://ge.globo.com/motor/formula-1/noticia/2026/11/04/analise-rafa-camara-tera-batismo-de-fogo-em-estreia-mas-forca-mental-sera-diferencial-no-brasil.ghtml", "https://ge.globo.com/motor/formula-1/noticia/2026/11/03/rafael-camara-sera-titular-da-haas-nos-gps-de-sao-paulo-e-las-vegas.ghtml"]
+image = "/images/ia/07fda1a845ec1821-original.jpg"
+image_credit_name = "1 de 4 Rafael Câmara é novo piloto da Haas na F1 2027 — Foto: Divulgação"
+image_credit_url = "https://ge.globo.com/motor/formula-1/noticia/2026/11/04/analise-rafa-camara-tera-batismo-de-fogo-em-estreia-mas-forca-mental-sera-diferencial-no-brasil.ghtml"
+image_provider = "Foto original da matéria-fonte"
+has_cards = true
++++
+A Haas resolveu não esperar 2027 para colocar Rafael Câmara no carro. A equipe anunciou nesta terça-feira que o pernambucano de 21 anos será companheiro de Oliver Bearman já neste fim de semana, no GP de São Paulo, e também em Las Vegas — as duas próximas etapas do campeonato. A vaga estava de Esteban Ocon, dispensado após os treinos livres no México e com contrato rescindido depois de desentendimentos durante o fim de semana na Cidade do México. No cockpit improvisado, o japonês Ryo Hirakawa, 32 anos, terminou em décimo e salvou um pontinho.
+
+A antecipação tem lógica dupla. Câmara já tinha contrato assinado para a temporada completa de 2027, e a equipe preferiu estreá-lo justamente em Interlagos, com a chance rara de um primeiro GP diante da própria torcida. Depois de Las Vegas, quem deve retornar ao carro é Hirakawa, que tem compromisso com a Toyota no WEC: ele está a caminho de Monza para as 6 Horas, onde corre ao lado de Sébastien Buemi e Brendon Hartley e pode faturar o tricampeonato do Mundial de Endurance, com 17 pontos de vantagem. Já Câmara fará apenas as duas provas porque as etapas finais da F2, no Catar e em Abu Dhabi, coincidem com o calendário da F1 — e o brasileiro lidera o campeonato da categoria de base. Existe até a possibilidade de as corridas do Oriente Médio não acontecerem por causa dos conflitos na região, com Imola fechando o ano e reduzindo a temporada a 22 provas.
+
+Com a estreia, Rafa se torna o sétimo brasileiro a debutar em um GP disputado no Brasil, juntando-se a Luiz Pereira Bueno, Ingo Hoffmann, Alex Dias Ribeiro, Ayrton Senna, Mauricio Gugelmin e Tarso Marques — um costume dos anos 1980, quando o país abria o calendário. Será também o 34º representante do Brasil na F1. Nesta quinta-feira, o Bradesco, patrocinador do piloto, anuncia um acordo com a Haas para 2027, com a expectativa de que a parceria já valha neste fim de semana.
+
+A escolha não veio do nada. No teste de Portimão, entre 26 e 28 de agosto, Câmara foi o mais rápido dos avaliados com o VF-25, o carro da temporada passada: dois décimos melhor que Bearman, cerca de 0s4 à frente de Leonardo Fornaroli e 0s7 na frente de Hirakawa. Mas o que realmente chamou atenção foi o resto. O chefe da equipe, Ayao Komatsu, foi direto: ‘Quando o tivemos no nosso programa de TPC em Portugal, Rafael mostrou que conseguia se virar muito bem, sem ter muito tempo para aprender o carro. Mostrou mais do que velocidade pura. Ele conseguiu criar um ambiente para tirar o melhor de si mesmo. Foi muito impressionante, e certamente as voltas que ele completou foram especiais.’ Os engenheiros compararam o feedback do novato ao de um veterano, e nos long runs ele somou velocidade, consistência e cuidado com os pneus — pacote raro para quem nunca havia andado no circuito nem com aquele carro.
+
+Agora vem a parte divertida: o batismo de fogo. Câmara nunca correu oficialmente em Interlagos, apesar de ter brilhado no kart nacional — campeão paulista e brasileiro — antes de ir cedo para a Europa, como Gabriel Bortoleto, completar a base no WSK e migrar para as fórmulas na Itália. Também jamais guiou os carros do regulamento atual, o maior salto tecnológico da categoria em mais de 75 anos, o que exige readaptação até de quem já está no grid. Somando tudo, um Q2 já seria resultado de gente grande: a Haas é sétima no Mundial, mas vem sendo alcançada pela Audi e sofre para acompanhar Racing Bulls, Alpine e a própria equipe alemã, enquanto Aston Martin e Williams melhoram. O consolo é que a pressão por resultados é baixa — e a vaga em 2027 já está garantida, então o brasileiro pode estrear sem a urgência de provar nada a ninguém. Só precisa fazer o que sabe: acelerar.
